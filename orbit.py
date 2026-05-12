@@ -650,9 +650,6 @@ app.layout = html.Div(style=PAGE_STYLE, children=[
                 # Resource × Workday heatmap
                 dcc.Graph(id='resource-heatmap'),
 
-                # Resource total FTE bar
-                dcc.Graph(id='resource-load-bar'),
-
                 # Delivery Centre / Entity split (if available)
                 dcc.Graph(id='dc-entity-bar'),
 
@@ -753,7 +750,90 @@ app.layout = html.Div(style=PAGE_STYLE, children=[
         ]),
 
         # ==============================
-        # TAB 3 – Action Planning
+        # TAB 3 – What-If Load Simulator
+        # ==============================
+        dcc.Tab(label='What-If Simulator', style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=[
+            html.Div(style={**CARD_STYLE, 'marginTop': '12px'}, children=[
+                html.H3('What If We Moved Work Away from the Peak Day?', style={'color': '#66aaff'}),
+                html.P(
+                    'Drag a percentage of an activity type from your peak day to one or more other days. '
+                    'Orbit recalculates the full load curve instantly so you can see whether rescheduling '
+                    'is worth it — and which specific tasks would move.',
+                    style={'color': '#aabbdd', 'fontSize': '14px', 'lineHeight': '1.7'}
+                ),
+
+                # ── Controls ──
+                html.Div(style={'display': 'flex', 'gap': '24px', 'flexWrap': 'wrap',
+                                'marginBottom': '20px', 'alignItems': 'flex-end'}, children=[
+                    html.Div(style={'flex': '1', 'minWidth': '160px'}, children=[
+                        html.Label('Move FROM (source day):', style=LABEL_STYLE),
+                        dcc.Dropdown(id='whatif-source-day', options=[], style=DROPDOWN_STYLE,
+                                     placeholder='Select source day…'),
+                    ]),
+                    html.Div(style={'flex': '2', 'minWidth': '200px'}, children=[
+                        html.Label('Move TO (target day/s):', style=LABEL_STYLE),
+                        dcc.Dropdown(id='whatif-target-days', options=[], multi=True,
+                                     style=DROPDOWN_STYLE, placeholder='Select one or more days…'),
+                    ]),
+                    html.Div(style={'flex': '1', 'minWidth': '160px'}, children=[
+                        html.Label('Activity Type (blank = all):', style=LABEL_STYLE),
+                        dcc.Dropdown(id='whatif-activity', options=[], style=DROPDOWN_STYLE,
+                                     placeholder='All activities'),
+                    ]),
+                    html.Div(style={'flex': '1', 'minWidth': '200px'}, children=[
+                        html.Label(id='whatif-slider-label',
+                                   children='Shift 20% of selected work',
+                                   style={**LABEL_STYLE, 'color': '#ffdd88'}),
+                        dcc.Slider(id='whatif-pct', min=5, max=100, value=20, step=5,
+                                   marks={
+                                       5:   {'label': '5%',   'style': {'color': '#ccc', 'fontSize': '11px'}},
+                                       25:  {'label': '25%',  'style': {'color': '#ccc', 'fontSize': '11px'}},
+                                       50:  {'label': '50%',  'style': {'color': '#ccc', 'fontSize': '11px'}},
+                                       75:  {'label': '75%',  'style': {'color': '#ccc', 'fontSize': '11px'}},
+                                       100: {'label': '100%', 'style': {'color': '#ccc', 'fontSize': '11px'}},
+                                   }),
+                    ]),
+                ]),
+
+                # ── Headline ──
+                html.Div(id='whatif-headline', style={
+                    'backgroundColor': 'rgba(0,80,40,0.4)',
+                    'border': '1px solid rgba(100,255,150,0.3)',
+                    'borderRadius': '6px',
+                    'padding': '12px 20px',
+                    'marginBottom': '16px',
+                    'fontSize': '15px',
+                    'color': '#88ffaa',
+                }),
+
+                # ── Before / After chart ──
+                dcc.Graph(id='whatif-chart'),
+
+                # ── Tasks that would move ──
+                html.Details(style={'marginTop': '16px'}, children=[
+                    html.Summary('Show tasks that would be rescheduled',
+                                 style={'cursor': 'pointer', 'color': '#aabbdd',
+                                        'marginBottom': '8px', 'fontSize': '14px'}),
+                    dash_table.DataTable(
+                        id='whatif-task-table',
+                        columns=[{'name': c, 'id': c} for c in
+                                 ['Task_name', 'Activity_type', 'Resource',
+                                  'Time_taken', 'Time_taken_hrs', 'FTE_contribution']],
+                        data=[],
+                        page_size=15,
+                        style_table={'overflowX': 'auto'},
+                        style_header={'backgroundColor': '#003366', 'color': 'white',
+                                      'fontWeight': 'bold'},
+                        style_cell={'backgroundColor': 'rgba(0,0,40,0.8)', 'color': 'white',
+                                    'fontFamily': 'Calibri', 'padding': '8px',
+                                    'textAlign': 'left'},
+                    ),
+                ]),
+            ])
+        ]),
+
+        # ==============================
+        # TAB 4 – Action Planning
         # ==============================
         dcc.Tab(label='Action Planning', style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=[
             html.Div(style={**CARD_STYLE, 'marginTop': '12px'}, children=[
@@ -1371,14 +1451,13 @@ def handle_server_exit(n_clicks):
 # ---------------------------------------------------------------------------
 @app.callback(
     [Output('resource-heatmap', 'figure'),
-     Output('resource-load-bar', 'figure'),
      Output('dc-entity-bar', 'figure'),
      Output('resource-activity-selector', 'options'),
      Output('resource-overload-alert', 'children')],
     [Input('uploaded-file-path', 'data')]
 )
 def update_resource_overview(file_path):
-    empty = ({}, {}, {}, [], '')
+    empty = ({}, {}, [], '')
     if not file_path:
         return empty
     try:
@@ -1413,23 +1492,6 @@ def update_resource_overview(file_path):
             fig_heat = go.Figure()
             fig_heat.update_layout(**make_dark_chart_layout(title='Resource column not in data'))
 
-        # ── Bar: Total FTE per Resource ──
-        if has_resource:
-            res_total = (df.groupby('Resource')['FTE']
-                         .sum().reset_index()
-                         .sort_values('FTE', ascending=False))
-            fig_bar = px.bar(
-                res_total, x='Resource', y='FTE',
-                color='FTE', color_continuous_scale='blues',
-                text='FTE', title='Total FTE by Resource',
-            )
-            fig_bar.update_traces(texttemplate='%{text:.2f}', textposition='outside')
-            fig_bar.update_layout(**make_dark_chart_layout())
-            fig_bar.update_coloraxes(showscale=False)
-        else:
-            fig_bar = go.Figure()
-            fig_bar.update_layout(**make_dark_chart_layout(title='Resource column not in data'))
-
         # ── Bar: Delivery Centre / Entity split ──
         group_col = next((c for c in ['Delivery_Centre', 'Entity', 'Company_code']
                           if c in df.columns), None)
@@ -1462,11 +1524,11 @@ def update_resource_overview(file_path):
                 alert = (f"⚠ Overloaded resources (>1.0 FTE on at least one day): "
                          f"{', '.join(names)}")
 
-        return fig_heat, fig_bar, fig_dc, act_opts, alert
+        return fig_heat, fig_dc, act_opts, alert
 
     except Exception as e:
         print(f'update_resource_overview error: {e}')
-        return {}, {}, {}, [], ''
+        return {}, {}, [], ''
 
 
 # ---------------------------------------------------------------------------
@@ -1505,6 +1567,181 @@ def update_resource_task_comparison(activity, file_path):
     except Exception as e:
         print(f'update_resource_task_comparison error: {e}')
         return {}
+
+
+# ---------------------------------------------------------------------------
+# What-If Simulator — populate dropdowns from file
+# ---------------------------------------------------------------------------
+@app.callback(
+    [Output('whatif-source-day', 'options'),
+     Output('whatif-target-days', 'options'),
+     Output('whatif-activity', 'options')],
+    [Input('uploaded-file-path', 'data')]
+)
+def populate_whatif_dropdowns(file_path):
+    if not file_path:
+        return [], [], []
+    try:
+        df = pd.read_csv(file_path)
+        df['Time_taken'] = pd.to_numeric(df['Time_taken'], errors='coerce')
+        df.dropna(subset=['Time_taken'], inplace=True)
+        df['FTE'] = df['Time_taken'] / (60 * WORK_HOURS)
+
+        # Sort days by total FTE descending so the peak appears first
+        day_fte = df.groupby('Timelines')['FTE'].sum().sort_values(ascending=False)
+        day_opts = [{'label': f"{d}  ({day_fte[d]:.1f} FTE)", 'value': d}
+                    for d in day_fte.index]
+        act_opts = [{'label': a, 'value': a}
+                    for a in sorted(df['Activity_type'].dropna().unique())]
+        return day_opts, day_opts, act_opts
+    except Exception as e:
+        print(f'populate_whatif_dropdowns error: {e}')
+        return [], [], []
+
+
+# ---------------------------------------------------------------------------
+# What-If Simulator — update slider label
+# ---------------------------------------------------------------------------
+@app.callback(
+    Output('whatif-slider-label', 'children'),
+    [Input('whatif-pct', 'value'),
+     Input('whatif-activity', 'value'),
+     Input('whatif-source-day', 'value')]
+)
+def update_whatif_label(pct, activity, source):
+    act_str = activity or 'all activities'
+    src_str = source or '(source day)'
+    return f'Shift {pct}% of {act_str} from {src_str}'
+
+
+# ---------------------------------------------------------------------------
+# What-If Simulator — main chart + headline + task table
+# ---------------------------------------------------------------------------
+@app.callback(
+    [Output('whatif-chart', 'figure'),
+     Output('whatif-headline', 'children'),
+     Output('whatif-task-table', 'data')],
+    [Input('whatif-source-day', 'value'),
+     Input('whatif-target-days', 'value'),
+     Input('whatif-activity', 'value'),
+     Input('whatif-pct', 'value'),
+     Input('uploaded-file-path', 'data')]
+)
+def update_whatif(source_day, target_days, activity, pct, file_path):
+    no_result = ({}, 'Select a source day and at least one target day to run the simulation.', [])
+    if not file_path or not source_day or not target_days:
+        return no_result
+    try:
+        df = pd.read_csv(file_path)
+        df['Time_taken'] = pd.to_numeric(df['Time_taken'], errors='coerce')
+        df.dropna(subset=['Time_taken'], inplace=True)
+        df['FTE'] = df['Time_taken'] / (60 * WORK_HOURS)
+
+        # Ensure target list doesn't include the source
+        targets = [d for d in target_days if d != source_day]
+        if not targets:
+            return ({}, 'Target day(s) must differ from the source day.', [])
+
+        shift_frac = pct / 100.0
+
+        # ── Identify the tasks to shift ──
+        mask = df['Timelines'] == source_day
+        if activity:
+            mask &= df['Activity_type'] == activity
+
+        source_tasks = df[mask].copy()
+        if source_tasks.empty:
+            return ({}, f'No tasks found on {source_day} for the selected activity.', [])
+
+        # Sort longest tasks first; take the top fraction by cumulative FTE
+        source_tasks = source_tasks.sort_values('FTE', ascending=False)
+        total_source_fte = source_tasks['FTE'].sum()
+        target_fte = total_source_fte * shift_frac
+
+        # Select tasks greedily until we reach the target FTE
+        source_tasks['cum_FTE'] = source_tasks['FTE'].cumsum()
+        tasks_to_move = source_tasks[source_tasks['cum_FTE'] <= target_fte].copy()
+        # Always move at least one task
+        if tasks_to_move.empty:
+            tasks_to_move = source_tasks.iloc[:1].copy()
+
+        moved_fte = tasks_to_move['FTE'].sum()
+        n_moved = len(tasks_to_move)
+
+        # ── Build simulated daily totals ──
+        daily = df.groupby('Timelines')['FTE'].sum().reset_index().copy()
+        daily.columns = ['Timelines', 'Actual_FTE']
+        daily['Simulated_FTE'] = daily['Actual_FTE'].copy()
+
+        # Deduct from source
+        src_idx = daily['Timelines'] == source_day
+        daily.loc[src_idx, 'Simulated_FTE'] -= moved_fte
+
+        # Distribute equally across targets
+        per_target = moved_fte / len(targets)
+        for t in targets:
+            tgt_idx = daily['Timelines'] == t
+            if tgt_idx.any():
+                daily.loc[tgt_idx, 'Simulated_FTE'] += per_target
+            else:
+                # Target day not yet in data — add a new row
+                new_row = pd.DataFrame([{
+                    'Timelines': t,
+                    'Actual_FTE': 0,
+                    'Simulated_FTE': per_target
+                }])
+                daily = pd.concat([daily, new_row], ignore_index=True)
+
+        # ── Chart ──
+        fig = go.Figure()
+        fig.add_bar(name='Actual', x=daily['Timelines'], y=daily['Actual_FTE'],
+                    marker_color='rgba(100,150,255,0.7)',
+                    text=daily['Actual_FTE'].round(2),
+                    texttemplate='%{text:.2f}', textposition='outside')
+        fig.add_bar(name='Simulated', x=daily['Timelines'], y=daily['Simulated_FTE'],
+                    marker_color='rgba(100,255,160,0.7)',
+                    text=daily['Simulated_FTE'].round(2),
+                    texttemplate='%{text:.2f}', textposition='outside')
+        fig.update_layout(
+            **make_dark_chart_layout(title='Load Curve — Actual vs. Simulated (FTE)'),
+            barmode='group',
+        )
+
+        # ── Headline ──
+        old_peak = daily['Actual_FTE'].max()
+        new_peak = daily['Simulated_FTE'].max()
+        old_peak_day = daily.loc[daily['Actual_FTE'].idxmax(), 'Timelines']
+        new_peak_day = daily.loc[daily['Simulated_FTE'].idxmax(), 'Timelines']
+        delta = old_peak - new_peak
+        act_str = activity or 'all activities'
+
+        if delta > 0.001:
+            headline = (
+                f"Shifting {pct}% of '{act_str}' from {source_day} to "
+                f"{', '.join(targets)} moves {n_moved} task(s) ({moved_fte:.2f} FTE). "
+                f"Peak load drops from {old_peak:.2f} FTE ({old_peak_day}) "
+                f"→ {new_peak:.2f} FTE ({new_peak_day})  —  saving {delta:.2f} FTE on peak day."
+            )
+        else:
+            headline = (
+                f"Shifting {pct}% of '{act_str}' moves {n_moved} task(s) ({moved_fte:.2f} FTE) "
+                f"but the overall peak remains at {new_peak:.2f} FTE (peak shifts to {new_peak_day})."
+            )
+
+        # ── Task table ──
+        table_cols = ['Task_name', 'Activity_type', 'Time_taken']
+        if 'Resource' in tasks_to_move.columns:
+            table_cols.insert(2, 'Resource')
+        export = tasks_to_move[table_cols].copy()
+        export['Time_taken_hrs'] = (export['Time_taken'] / 60).round(2)
+        export['FTE_contribution'] = tasks_to_move['FTE'].round(3).values
+        export['Time_taken'] = export['Time_taken'].round(0).astype(int)
+
+        return fig, headline, export.to_dict('records')
+
+    except Exception as e:
+        print(f'update_whatif error: {e}')
+        return {}, 'Error running simulation.', []
 
 
 # ===========================================================================
