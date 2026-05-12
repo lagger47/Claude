@@ -1,0 +1,6 @@
+ID	Cluster	Delivery_Centre	Entity	Company_code	Activity_type	Task_name	Frequency	Timelines	Target_Date	Actual_Date	Status	Time_taken	Resource	Reviewer	Std_Time
+1	APAC	KOLKQTA		313	IBS AP & AR	IBS billing  (all)	Monthly	WD15				40	Prafulla Samal/Sujay Mishra		40
+2	APAC	KOLKQTA		344	Closing activities	Division team Journal	Monthly	WD3				400	Prafulla Samal/Sujay Mishra		400
+3	APAC	KOLKQTA		313	Closing activities	Division team Journal	Monthly	WD3				400	Prafulla Samal/Sujay Mishra		400
+4	APAC	KOLKQTA		344	Reconciliation	344 Balance Sheet Recon	Monthly	WD4				1200	Prafulla Samal/Sujay Mishra		180
+5	APAC	KOLKQTA		344	Reconciliation	344 Balance Sheet Recon	Monthly	WD8				1200	Prafulla Samal/Sujay Mishra		180
