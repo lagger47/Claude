@@ -61,6 +61,100 @@ app = dash.Dash(__name__, suppress_callback_exceptions=True)
 auth = dash_auth.BasicAuth(app, VALID_USERNAME_PASSWORD_PAIRS)
 app.title = 'Orbit 2.0'
 
+# Inject global CSS so Dash dropdown internals pick up the dark theme.
+# The dcc.Dropdown style prop only styles the wrapper; the inner
+# react-select elements need CSS class overrides.
+app.index_string = '''<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+        <style>
+        /* ── Dropdown control box ── */
+        .Select-control {
+            background-color: #001144 !important;
+            border-color: rgba(255,255,255,0.3) !important;
+        }
+        .Select-control:hover {
+            border-color: rgba(255,255,255,0.6) !important;
+            box-shadow: none !important;
+        }
+        /* ── Selected value & placeholder text ── */
+        .Select-value-label,
+        .Select--single > .Select-control .Select-value .Select-value-label {
+            color: white !important;
+        }
+        .Select-placeholder { color: #8899bb !important; }
+        .Select-input > input {
+            color: white !important;
+            background: transparent !important;
+        }
+        /* ── Dropdown arrow ── */
+        .Select-arrow { border-top-color: rgba(255,255,255,0.7) !important; }
+        .is-open .Select-arrow {
+            border-bottom-color: rgba(255,255,255,0.7) !important;
+            border-top-color: transparent !important;
+        }
+        .Select-clear { color: #aaccff !important; }
+        /* ── Open menu ── */
+        .Select-menu-outer {
+            background-color: #001533 !important;
+            border-color: rgba(255,255,255,0.2) !important;
+            z-index: 9999 !important;
+        }
+        .VirtualizedSelectOption {
+            color: white !important;
+            background-color: #001533 !important;
+        }
+        .VirtualizedSelectFocusedOption {
+            background-color: #003399 !important;
+            color: white !important;
+        }
+        .VirtualizedSelectSelectedOption {
+            color: #66aaff !important;
+            font-weight: bold;
+        }
+        /* ── Multi-select tokens ── */
+        .Select-multi-value-wrapper .Select-value {
+            background-color: #003366 !important;
+            border-color: rgba(255,255,255,0.3) !important;
+        }
+        .Select-multi-value-wrapper .Select-value-label { color: white !important; }
+        .Select-multi-value-wrapper .Select-value-icon {
+            border-right-color: rgba(255,255,255,0.25) !important;
+            color: #aaccff !important;
+        }
+        /* ── Slider track / handle ── */
+        .rc-slider-rail { background-color: rgba(255,255,255,0.2) !important; }
+        .rc-slider-track { background-color: #0066cc !important; }
+        .rc-slider-handle {
+            border-color: #4499ff !important;
+            background-color: white !important;
+        }
+        /* ── Custom scrollbar ── */
+        ::-webkit-scrollbar { width: 7px; height: 7px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,20,0.4); }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100,150,255,0.4);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(100,150,255,0.7); }
+        /* ── Number inputs ── */
+        input[type=number] { color: white; }
+        </style>
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>'''
+
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
@@ -539,6 +633,44 @@ app.layout = html.Div(style=PAGE_STYLE, children=[
         ]),
 
         # ==============================
+        # TAB 1b – Resource Utilization
+        # ==============================
+        dcc.Tab(label='Resource Utilization', style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=[
+            html.Div(style={**CARD_STYLE, 'marginTop': '12px'}, children=[
+                html.H3('Who Is Doing What — and When?', style={'color': '#66aaff'}),
+                html.P(
+                    'Understand how work is distributed across your team. '
+                    'Resources with >1.0 FTE on a single day are flagged as overloaded.',
+                    style={'color': '#aabbdd', 'fontSize': '14px'}
+                ),
+                html.Div(id='resource-overload-alert',
+                         style={'color': '#ff7755', 'fontSize': '14px', 'fontWeight': 'bold',
+                                'marginBottom': '10px'}),
+
+                # Resource × Workday heatmap
+                dcc.Graph(id='resource-heatmap'),
+
+                # Resource total FTE bar
+                dcc.Graph(id='resource-load-bar'),
+
+                # Delivery Centre / Entity split (if available)
+                dcc.Graph(id='dc-entity-bar'),
+
+                html.Hr(style={'borderColor': 'rgba(255,255,255,0.15)', 'margin': '20px 0'}),
+                html.H4('Task Duration Comparison Across Resources', style={'color': '#66aaff'}),
+                html.P('Select an activity type to see whether certain resources consistently '
+                       'take longer than others on the same work — a coaching/process signal.',
+                       style={'color': '#aabbdd', 'fontSize': '13px'}),
+                html.Div([
+                    html.Label('Activity Type:', style=LABEL_STYLE),
+                    dcc.Dropdown(id='resource-activity-selector', style=DROPDOWN_STYLE,
+                                 placeholder='Select an activity type…'),
+                ], style={'width': '40%', 'marginBottom': '12px'}),
+                dcc.Graph(id='resource-task-box'),
+            ])
+        ]),
+
+        # ==============================
         # TAB 2 – Peak Load Clustering
         # ==============================
         dcc.Tab(label='Peak Load Clustering', style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=[
@@ -634,7 +766,6 @@ app.layout = html.Div(style=PAGE_STYLE, children=[
                     data=action_table_init,
                     editable=True,
                     row_deletable=True,
-                    row_addable=True,
                     style_table={'overflowX': 'auto'},
                     style_header={'backgroundColor': '#003366', 'color': 'white', 'textAlign': 'center', 'fontWeight': 'bold'},
                     style_cell={
@@ -1233,6 +1364,147 @@ def handle_server_exit(n_clicks):
         from threading import Thread
         Thread(target=_shutdown, daemon=True).start()
     return False
+
+
+# ---------------------------------------------------------------------------
+# Resource Utilization — overview (heatmap, bar, DC/Entity bar, overload alert)
+# ---------------------------------------------------------------------------
+@app.callback(
+    [Output('resource-heatmap', 'figure'),
+     Output('resource-load-bar', 'figure'),
+     Output('dc-entity-bar', 'figure'),
+     Output('resource-activity-selector', 'options'),
+     Output('resource-overload-alert', 'children')],
+    [Input('uploaded-file-path', 'data')]
+)
+def update_resource_overview(file_path):
+    empty = ({}, {}, {}, [], '')
+    if not file_path:
+        return empty
+    try:
+        df = pd.read_csv(file_path)
+        df['Time_taken'] = pd.to_numeric(df['Time_taken'], errors='coerce')
+        df.dropna(subset=['Time_taken'], inplace=True)
+        df['FTE'] = df['Time_taken'] / (60 * WORK_HOURS)
+
+        has_resource = 'Resource' in df.columns
+
+        # ── Heatmap: Resource × Timelines ──
+        if has_resource:
+            pivot = (df.groupby(['Resource', 'Timelines'])['FTE']
+                     .sum().reset_index()
+                     .pivot(index='Resource', columns='Timelines', values='FTE')
+                     .fillna(0))
+            fig_heat = px.imshow(
+                pivot,
+                labels=dict(x='Work Day', y='Resource', color='FTE'),
+                color_continuous_scale='reds',
+                aspect='auto',
+                title='Resource × Work Day Heatmap (FTE)',
+            )
+            fig_heat.update_layout(**make_dark_chart_layout())
+            fig_heat.update_layout(
+                coloraxis_colorbar=dict(
+                    tickfont=dict(color='white'),
+                    title=dict(text='FTE', font=dict(color='white')),
+                )
+            )
+        else:
+            fig_heat = go.Figure()
+            fig_heat.update_layout(**make_dark_chart_layout(title='Resource column not in data'))
+
+        # ── Bar: Total FTE per Resource ──
+        if has_resource:
+            res_total = (df.groupby('Resource')['FTE']
+                         .sum().reset_index()
+                         .sort_values('FTE', ascending=False))
+            fig_bar = px.bar(
+                res_total, x='Resource', y='FTE',
+                color='FTE', color_continuous_scale='blues',
+                text='FTE', title='Total FTE by Resource',
+            )
+            fig_bar.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+            fig_bar.update_layout(**make_dark_chart_layout())
+            fig_bar.update_coloraxes(showscale=False)
+        else:
+            fig_bar = go.Figure()
+            fig_bar.update_layout(**make_dark_chart_layout(title='Resource column not in data'))
+
+        # ── Bar: Delivery Centre / Entity split ──
+        group_col = next((c for c in ['Delivery_Centre', 'Entity', 'Company_code']
+                          if c in df.columns), None)
+        if group_col:
+            dc_df = (df.groupby([group_col, 'Activity_type'])['FTE']
+                     .sum().reset_index()
+                     .sort_values('FTE', ascending=False))
+            fig_dc = px.bar(
+                dc_df, x=group_col, y='FTE', color='Activity_type',
+                barmode='stack',
+                title=f'FTE by {group_col} and Activity Type',
+            )
+            fig_dc.update_layout(**make_dark_chart_layout())
+        else:
+            fig_dc = go.Figure()
+            fig_dc.update_layout(**make_dark_chart_layout(
+                title='No Delivery Centre / Entity / Company Code column found'))
+
+        # ── Activity selector options ──
+        act_opts = [{'label': a, 'value': a}
+                    for a in sorted(df['Activity_type'].dropna().unique())]
+
+        # ── Overload alert ──
+        alert = ''
+        if has_resource:
+            daily_res = df.groupby(['Resource', 'Timelines'])['FTE'].sum()
+            overloaded = daily_res[daily_res > 1.0]
+            if not overloaded.empty:
+                names = overloaded.index.get_level_values('Resource').unique().tolist()
+                alert = (f"⚠ Overloaded resources (>1.0 FTE on at least one day): "
+                         f"{', '.join(names)}")
+
+        return fig_heat, fig_bar, fig_dc, act_opts, alert
+
+    except Exception as e:
+        print(f'update_resource_overview error: {e}')
+        return {}, {}, {}, [], ''
+
+
+# ---------------------------------------------------------------------------
+# Resource Utilization — task-duration comparison per resource
+# ---------------------------------------------------------------------------
+@app.callback(
+    Output('resource-task-box', 'figure'),
+    [Input('resource-activity-selector', 'value'),
+     Input('uploaded-file-path', 'data')]
+)
+def update_resource_task_comparison(activity, file_path):
+    if not file_path or not activity:
+        return {}
+    try:
+        df = pd.read_csv(file_path)
+        df['Time_taken'] = pd.to_numeric(df['Time_taken'], errors='coerce')
+        df.dropna(subset=['Time_taken'], inplace=True)
+        if 'Resource' not in df.columns:
+            return {}
+        sub = df[df['Activity_type'] == activity].copy()
+        sub['Time_taken_hours'] = sub['Time_taken'] / 60
+        hover = [c for c in ['Task_name', 'Timelines', 'Entity'] if c in sub.columns]
+        fig = px.box(
+            sub, x='Resource', y='Time_taken_hours',
+            points='all', hover_data=hover,
+            title=f'Task Duration by Resource — {activity}',
+            color='Resource',
+        )
+        fig.update_layout(**make_dark_chart_layout())
+        # Overlay cluster mean line
+        mean_val = sub['Time_taken_hours'].mean()
+        fig.add_hline(y=mean_val, line_dash='dash', line_color='yellow',
+                      annotation_text=f'Overall mean: {mean_val:.2f} h',
+                      annotation_font_color='yellow')
+        return fig
+    except Exception as e:
+        print(f'update_resource_task_comparison error: {e}')
+        return {}
 
 
 # ===========================================================================
