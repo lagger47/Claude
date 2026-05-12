@@ -629,41 +629,28 @@ app.layout = html.Div(style=PAGE_STYLE, children=[
                     ])
                 ]),
 
-            ])
-        ]),
+                # -- Resource Comparison --
+                dcc.Tab(label='Resource Comparison', style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=[
+                    html.Div(style={**CARD_STYLE, 'marginTop': '12px'}, children=[
+                        html.H3('Task Duration Comparison Across Resources', style={'color': '#66aaff'}),
+                        html.P(
+                            'Select an activity type to see whether certain team members '
+                            'consistently take longer than others on the same work. '
+                            'A wide spread = coaching or process opportunity.',
+                            style={'color': '#aabbdd', 'fontSize': '14px', 'lineHeight': '1.7'}
+                        ),
+                        html.Div(id='resource-overload-alert',
+                                 style={'color': '#ff7755', 'fontSize': '14px',
+                                        'fontWeight': 'bold', 'marginBottom': '10px'}),
+                        html.Div([
+                            html.Label('Activity Type:', style=LABEL_STYLE),
+                            dcc.Dropdown(id='resource-activity-selector', style=DROPDOWN_STYLE,
+                                         placeholder='Select an activity type…'),
+                        ], style={'width': '40%', 'marginBottom': '12px'}),
+                        dcc.Graph(id='resource-task-box'),
+                    ])
+                ]),
 
-        # ==============================
-        # TAB 1b – Resource Utilization
-        # ==============================
-        dcc.Tab(label='Resource Utilization', style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=[
-            html.Div(style={**CARD_STYLE, 'marginTop': '12px'}, children=[
-                html.H3('Who Is Doing What — and When?', style={'color': '#66aaff'}),
-                html.P(
-                    'Understand how work is distributed across your team. '
-                    'Resources with >1.0 FTE on a single day are flagged as overloaded.',
-                    style={'color': '#aabbdd', 'fontSize': '14px'}
-                ),
-                html.Div(id='resource-overload-alert',
-                         style={'color': '#ff7755', 'fontSize': '14px', 'fontWeight': 'bold',
-                                'marginBottom': '10px'}),
-
-                # Resource × Workday heatmap
-                dcc.Graph(id='resource-heatmap'),
-
-                # Delivery Centre / Entity split (if available)
-                dcc.Graph(id='dc-entity-bar'),
-
-                html.Hr(style={'borderColor': 'rgba(255,255,255,0.15)', 'margin': '20px 0'}),
-                html.H4('Task Duration Comparison Across Resources', style={'color': '#66aaff'}),
-                html.P('Select an activity type to see whether certain resources consistently '
-                       'take longer than others on the same work — a coaching/process signal.',
-                       style={'color': '#aabbdd', 'fontSize': '13px'}),
-                html.Div([
-                    html.Label('Activity Type:', style=LABEL_STYLE),
-                    dcc.Dropdown(id='resource-activity-selector', style=DROPDOWN_STYLE,
-                                 placeholder='Select an activity type…'),
-                ], style={'width': '40%', 'marginBottom': '12px'}),
-                dcc.Graph(id='resource-task-box'),
             ])
         ]),
 
@@ -1447,76 +1434,27 @@ def handle_server_exit(n_clicks):
 
 
 # ---------------------------------------------------------------------------
-# Resource Utilization — overview (heatmap, bar, DC/Entity bar, overload alert)
+# Resource Comparison — populate activity selector + overload alert
 # ---------------------------------------------------------------------------
 @app.callback(
-    [Output('resource-heatmap', 'figure'),
-     Output('dc-entity-bar', 'figure'),
-     Output('resource-activity-selector', 'options'),
+    [Output('resource-activity-selector', 'options'),
      Output('resource-overload-alert', 'children')],
     [Input('uploaded-file-path', 'data')]
 )
 def update_resource_overview(file_path):
-    empty = ({}, {}, [], '')
     if not file_path:
-        return empty
+        return [], ''
     try:
         df = pd.read_csv(file_path)
         df['Time_taken'] = pd.to_numeric(df['Time_taken'], errors='coerce')
         df.dropna(subset=['Time_taken'], inplace=True)
         df['FTE'] = df['Time_taken'] / (60 * WORK_HOURS)
 
-        has_resource = 'Resource' in df.columns
-
-        # ── Heatmap: Resource × Timelines ──
-        if has_resource:
-            pivot = (df.groupby(['Resource', 'Timelines'])['FTE']
-                     .sum().reset_index()
-                     .pivot(index='Resource', columns='Timelines', values='FTE')
-                     .fillna(0))
-            fig_heat = px.imshow(
-                pivot,
-                labels=dict(x='Work Day', y='Resource', color='FTE'),
-                color_continuous_scale='reds',
-                aspect='auto',
-                title='Resource × Work Day Heatmap (FTE)',
-            )
-            fig_heat.update_layout(**make_dark_chart_layout())
-            fig_heat.update_layout(
-                coloraxis_colorbar=dict(
-                    tickfont=dict(color='white'),
-                    title=dict(text='FTE', font=dict(color='white')),
-                )
-            )
-        else:
-            fig_heat = go.Figure()
-            fig_heat.update_layout(**make_dark_chart_layout(title='Resource column not in data'))
-
-        # ── Bar: Delivery Centre / Entity split ──
-        group_col = next((c for c in ['Delivery_Centre', 'Entity', 'Company_code']
-                          if c in df.columns), None)
-        if group_col:
-            dc_df = (df.groupby([group_col, 'Activity_type'])['FTE']
-                     .sum().reset_index()
-                     .sort_values('FTE', ascending=False))
-            fig_dc = px.bar(
-                dc_df, x=group_col, y='FTE', color='Activity_type',
-                barmode='stack',
-                title=f'FTE by {group_col} and Activity Type',
-            )
-            fig_dc.update_layout(**make_dark_chart_layout())
-        else:
-            fig_dc = go.Figure()
-            fig_dc.update_layout(**make_dark_chart_layout(
-                title='No Delivery Centre / Entity / Company Code column found'))
-
-        # ── Activity selector options ──
         act_opts = [{'label': a, 'value': a}
                     for a in sorted(df['Activity_type'].dropna().unique())]
 
-        # ── Overload alert ──
         alert = ''
-        if has_resource:
+        if 'Resource' in df.columns:
             daily_res = df.groupby(['Resource', 'Timelines'])['FTE'].sum()
             overloaded = daily_res[daily_res > 1.0]
             if not overloaded.empty:
@@ -1524,11 +1462,11 @@ def update_resource_overview(file_path):
                 alert = (f"⚠ Overloaded resources (>1.0 FTE on at least one day): "
                          f"{', '.join(names)}")
 
-        return fig_heat, fig_dc, act_opts, alert
+        return act_opts, alert
 
     except Exception as e:
         print(f'update_resource_overview error: {e}')
-        return {}, {}, [], ''
+        return [], ''
 
 
 # ---------------------------------------------------------------------------
