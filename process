@@ -1,0 +1,50 @@
+Compare Prior Vs Current Payroll
+S. No.	Process Steps												
+1	After final calc 												
+2	Open PeopleSoft HR and go to Payroll Register tab in Main menu " run the process  using the appropriate Run ID.												
+3	Download the resulting PDF file.												
+4	Save Pdf file with name payroll register after final calc.												
+5	Open Pdf file of payroll register before final calc.												
+6	Open Pdf  file of both payroll register previous & Current ,Goto last page 												
+7	Match all hours & amount with previous one & there are 1st column should be zero .												
+8	If everything match with previous then we prossed for next step for payroll confirmation.												
+NET_GREATERTHAN_10000
+S. No.	Process Steps												
+1	Open PeopleSoft HR and run the query "Net_Greater_Than_10000 " using the appropriate Run ID.												
+2	Download the resulting Excel file.												
+3	Open Execel file ,Use filter in 1st row												
+4	Using  filter option   Remove '4 to 7 & X ' grade employee from 'P' column 												
+5	Filter values  more than 10000 Inn 'J' column.												
+6	If values more than 10000, then add extra column and multply 'N' column to '80' for every line  item												
+7	if valus comes less than 10000 in additional column ,but their total income for RGP in 'K'  column is more than 10000 valueshighlight the cells.												
+Flag_highvalue transactions
+S. No.	Process Steps												
+1	Open PeopleSoft HR and run the query "Earntime_Greater_Than_10000 " using the appropriate Run ID.												
+2	Download the resulting Excel file.												
+3	Open Execel file ,Use filter in 1st row												
+4	Using  filteroption   Remove '4 to 7 ,& X ' grade employee from 'L' column 												
+5	Filter values  more than 10000.												
+6	If values more than 10000, then add extra column and multply 'N' column to '80' for every line  item												
+7	if valus comes less than 10000 in additional column ,but their total income for RGP in 'G'  column is more than 10000 valueshighlight the cells.				
+Integrate Pay calendar with pay 
+S. No.	Process Steps												
+1	Open PeopleSoft HR and run the query "Pay_Calendar_Check " using the appropriate Run ID.												
+2	Download the resulting Excel file.												
+3	Open Execel file , Match all Company & Paygroup with SOP 												
+4	Check PPE date & Check date 												
+5	Check paid weeks which should be 2 in 'J' column for every line 												
+6	Check Deduction & Genral Deduction which should be 'D' for 'I & J' column.												
+7	Check Pay Period which should be 2 in 'N' if comes 3 review accorid to payroll in a month.												
+8	Check 'Q to AB 'column  & ' AE to AZ' column which shold be 'N' except 'AF & AM' column.												
+9	If any thing umnatched reach out to client to fix the issue.												
+S. No.	Process Steps												
+1	Open PeopleSoft HR and run the query _HPAC_VK_PAYRUN_ID using the appropriate Run ID.												
+2	Download the resulting Excel file.												
+3	Open the file and convert column F using the Text‑to‑Columns function.												
+4	Navigate to Z drive → Genpact → USA → B04 → last PPE folder → output → final reports, and open the Excel file named _HPAC_VK_PAYRUN_ID from the previous payroll.												
+5	Use VLOOKUP to pull the values from column J of the previous payroll file into the current HPAC_CL_PAYRUN_ID Excel file.												
+6	Compare the data using a TRUE/FALSE match check.												
+7	Filter for FALSE and #N/A results.												
+8	Validate the unmatched amounts against PeopleSoft and Garnishment tracker data.												
+9	Ensure each unmatched item has a valid explanation.												
+
