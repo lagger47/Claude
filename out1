@@ -1,0 +1,16 @@
+Per day:
+  2026-05-26 : 1
+ 
+Log files available (how far back they reach):
+ 
+File                                                                          LastWriteTime          KB
+----                                                                          -------------          --
+C:\ProgramData\Amazon\WSP\TRANSMITTED\2026042720_wsp.service.host-adapter.log 4/28/2026 2:15:54 AM    0
+C:\ProgramData\NICE\dcv\log\webauthnnativemsghost.X1BINOKU.724.log            4/28/2026 6:57:53 PM    0
+C:\ProgramData\NICE\dcv\log\agentsession.log                                  5/26/2026 4:34:53 PM    3
+C:\ProgramData\NICE\dcv\log\wtsapi_1.log                                      5/26/2026 4:34:56 PM 5562
+C:\ProgramData\NICE\dcv\log\rdpadapter_32.log                                 5/26/2026 4:35:01 PM   17
+C:\ProgramData\NICE\dcv\log\agent.log                                         5/26/2026 4:35:39 PM   21
+C:\ProgramData\NICE\dcv\log\server.log                                        5/26/2026 4:35:42 PM   32
+C:\ProgramData\NICE\dcv\log\agent.X1BINOKU.log                                5/26/2026 4:35:43 PM   11
+C:\ProgramData\Amazon\WSP\wsp.service.host-adapter.log                        5/26/2026 4:40:03 PM   24
