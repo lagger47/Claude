@@ -1,0 +1,6 @@
+Get-WinEvent : No events were found that match the specified selection criteria.
+At line:5 char:8
++ $all = Get-WinEvent -FilterHashtable @{ LogName=$log; Id=21,23,24,25; ...
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (:) [Get-WinEvent], Exception
+    + FullyQualifiedErrorId : NoMatchingEventsFound,Microsoft.PowerShell.Commands.GetWinEventCommand
