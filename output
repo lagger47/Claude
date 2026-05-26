@@ -1,0 +1,35 @@
+Log                                                                    Status Total IDs
+---                                                                    ------ ----- ---
+Microsoft-Windows-TerminalServices-LocalSessionManager/Operational     empty      0
+Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational OK      1966 261x1966
+Security                                                               empty      0
+System                                                                 empty      0
+Application                                                            OK         1 1000x1
+ 
+ 
+Streaming-agent log files on disk (PCoIP / Amazon DCV / WorkSpaces):
+ 
+FullName
+--------
+C:\ProgramData\Amazon\AmazonCloudWatchAgent\Logs\amazon-cloudwatch-agent.log
+C:\ProgramData\Amazon\AmazonCloudWatchAgent\Logs\configuration-validation.log
+C:\ProgramData\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent.log
+C:\ProgramData\Amazon\AWSUpdateWindowsInstance\431b22dc-5643-4963-b81c-1e7ea34c0086\Start-AwsUwiSysprep\Start-AwsUwi...
+C:\ProgramData\Amazon\EC2Launch\log\agent.log
+C:\ProgramData\Amazon\EC2Launch\log\bench.log
+C:\ProgramData\Amazon\EC2Launch\log\console.log
+C:\ProgramData\Amazon\EC2Launch\log\err.log
+C:\ProgramData\Amazon\EC2Launch\log\telemetry.log
+C:\ProgramData\Amazon\WSP\TRANSMITTED\2026042720_wsp.service.host-adapter.log
+C:\ProgramData\Amazon\WSP\wsp.service.host-adapter.log
+ 
+ 
+FullName                                                           LastWriteTime
+--------                                                           -------------
+C:\ProgramData\NICE\dcv\log\agent.log                              5/26/2026 4:19:06 PM
+C:\ProgramData\NICE\dcv\log\agent.X1BINOKU.log                     5/26/2026 4:19:05 PM
+C:\ProgramData\NICE\dcv\log\agentsession.log                       5/26/2026 4:13:04 PM
+C:\ProgramData\NICE\dcv\log\rdpadapter_1540.log                    5/26/2026 4:05:49 PM
+C:\ProgramData\NICE\dcv\log\server.log                             5/26/2026 4:19:05 PM
+C:\ProgramData\NICE\dcv\log\webauthnnativemsghost.X1BINOKU.724.log 4/28/2026 6:57:53 PM
+C:\ProgramData\NICE\dcv\log\wtsapi_1.log                           5/26/2026 4:05:41 PM
