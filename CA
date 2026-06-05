@@ -1,0 +1,127 @@
+	WE need two files to export data																	
+	1. EDI 	2. MUFG Paid Invoices																
+	
+  EDI FILE EXPORT															
+																		
+																		
+	Step 1: To extract EDI go to FBL3N , type GL account number : 11000509999																	
+	Step 2: Company code: 0087																	
+	Step 3: Click on open items e.g; 5/31/2026																	
+	Step 4: Execute																	
+	Step 5: Click on header Assignment																	
+	Step 6: Click on sub total icon																	
+	Step 7: Again click on Assignment 																	
+	Step 8: Click on collapse icon 																	
+	Step 9: The balances which are left in debit or positive , need to copy those assigment numbers  excluding NVL, CAD and negative amounts																	
+	Step 10: Again open a new window, FBL3N																	
+	Step 11: Company code, same GL account number, open items date 5/31/2026, this time don’t execute																	
+	Step 12: Click on dynamic selection																	
+	Step 13: There is an assignment option, in which you need to copy those assignment numbersone by one and paste it 																	
+	Step 14: Execute and export the data and save as the file name as EDI export																	
+																		
+	MUFG PAID INVOICES 																	
+																		
+																		
+	Step 1: Go to FBL5N																	
+	Step 2: Click on Variant cmm																	
+	Step 3: Give customer all account numbers																	
+	Step 4: Cleared Items : from 5/1/2026 and 5/31/2026																	
+	Step 5: Layout :  /MUFG PAID																	
+	Step 6: Execute																	
+	Step 7: Export the data save as MUFG PAID Inv																	
+	OR																	
+	Step 1: Go to FBL5N																	
+	Step 2: Type factored account numbers																	
+	Step 3: 0087 company code																	
+	Step 4: Cleared Items : from 1/1/2026 and 5/31/2026																	
+	Step 5: Layout :  /MUFG PAID																	
+	Step 6: Execute																	
+	Step 7: Select the invoice type RV 																	
+	Step 8: Export the data																	
+																		
+	Two Files : use v lookup 																	
+																		
+																		
+																		
+	Open these two files																	
+																		
+	Step 1: First open the MUFG Paid inv file and apply vlookup 																	
+	Step 2: write down the formula : =Vlookup ( select clearing document number and the select the table array from early edi file the whole doc number column, 1,0 ) 																	
+	Step 3: You can see NA and numbers now filter the numbers 																	
+	Step 4: The clearing date needs to be given manually, give any date or 1st working day of upcoming month and it is assumed that it will be cleared in thecoming month																	
+																		
+		PREPARING THE SEC REPORTING FILE																
+																		
+																		
+		Step 1: Copy the previous month's file and paste it in the new folder																
+		Step 2: Open this file go to tab of cleared items 																
+		Step 3: Now paste the data from MUFG paid invoices upto Clearing document number																
+		Step 4: Document numbers should be converted to numbers as per file format otherwise data output come wrong 																
+		Step 5: Now go to the next tav named as Invoice list tab 																
+		Step 6: Now we will start doing categorisation 																
+		Step 7: First we will start filtering the data by selcting the previous month suppose April																
+		Step 8:  There must be two categories in the past month so need to check 4 categories  if there is any change 																
+		Step 9: After doing categorisation we need to paste the whole month factoring data suppose for May month																
+		Step 10: Go to MUFG folder an dopen the last reporting file of May month suppose 																
+		Step 11: Go to detail tab and filter the date of trade payment of May month dates																
+		Step 12 : Copy the whole data and paste special in the invoice list tab of reporting file 																
+		Step 13: now in the cleared date column need to drag down formula and filter the column select blank in period																
+		Step 14: Do categorisation 																
+		Step 15 : After doing all categorisation go to tab cash collection, for this date refresh all, then select the reporting period for the month and the select cas collection and cash collection payable for the month suppose May																
+		Step 16: Then go to sales tab and select the period 																
+		Step 17: Select all the funding adtes and reconcile with the reporting file 																
+		Step 18 : Again go to payment tab and select the reporting period and select the dates which were paid throughout May																
+		Step 19: Go to outstanding balance tab then deselect the dates and choose the dates after May month 																
+		Step 20: Go to activity summary tab and then refresh 																
+		Step 21: Copy the amount of cash collection apayble and put the amount in the required column as well as for uncollected data																
+		Step 22: Then again go to the balance by customer tab and deselect all the dates just select the dates after may month																
+																		
+																		
+		Notes:																
+		There should be always two categoies in the previous month			2026-04	cash collection and 2026-04 cahs collection payable												
+																
+																		
+For cash collection payable for the the month of April, repaymant date will be May and clearing date will be upto April month 																
+																		
+																		
+For current month (May)																
+CATEGORY 1: CASH COLLECTION AND CASH REPAYMENT SHOULD BE DONE IN THE SAME MONTH																
+																		
+																		
+CATEGORY 2: CASH COLLECTION IN THE MAY MONTH BUT CASH REPAYMENT IS DONE AFTER MAY MONTH KNOWN AS CASH COLLECTION PAYABLE																		
+																		
+																		
+CATEGORY 3: CASH COLLECTION AND CASH REPAYMENT BOTH ARE NOT  DONE  KNOWN AS DERECOGNIZED AR																		
+																		
+			
+CATEGORY 4: CASH COLLECTION IS NOT DONE BUT CASH REPAYMENT DONE  KNOWN AS UNCOLLECTED																	
+																		
+																		
+Category 	Period	Logic
+Cash collection 	2026-04	"1. Invoice clearing date till May2026
+                           2. Repayment date within upto May 2026 
+                           3. Period will be 2026-05 "
+Cash collection payable 	2026-04	"1. Invoice clearing date till May 2026
+                                   2. Repayment date after May month 2026
+                                   3. Period will be 2026-05
+"
+Derecognized AR	2026-04	"1. Invoice clearing date after May 2026 or NA
+                         2. Repayment date after May month 2026 (5/31/2026)
+                         3. Period will be 2026-05"
+Uncollected 	2026-04	"1. Invoice clearing date June 2026 or N/A
+                       2. Repaymet date upto May 2026
+                       3. Period will be 2026-05
+"
+																		
+Short form for each Company
+		Caterpillar, Inc.	  CA															
+		Deere & Company	    DE															
+		FCA US, LLC	FC															
+		Harley-Davidson, Inc.	HA															
+		Cummins, Inc.	CU															
+		General Motors LLC	GE															
+		Toyota Motor Engineering & Manufacturing North America, Inc.	TO															
+		General Motors of Canada Company	GEC															
+		Ford Motor Company	FO															
+
+This whole thing is an example showed for a month and based on that but the logic will be same for next months 
