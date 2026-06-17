@@ -1,0 +1,130 @@
+This is the ultimate end-to-end master plan. You want a fully orchestrated system where Claude does 90% of the heavy lifting, leaving you to just show up, talk about your domain expertise, and crack the interview.
+First, let’s address the 3+ years experience and SAP fluency roadblock.
+The 3+ Years Trap: Corporate HR filters automatically reject 2 YOE candidates for 3+ YOE roles. Solution: Stop applying to Fortune 500 companies on LinkedIn. Target Series A/B FinTech Startups, Mid-Market SaaS, and Boutique Consulting firms. Startups care about what you can build, not your exact months of experience.
+The SAP Fluency Trap: You don't need to be an SAP configuration expert. You just need to know how to move data in and out of it. Solution: We will rebrand your resume from "SAP Fluency" to "ERP Integration & Data Pipeline Automation (SAP/Oracle)". This turns a weakness into a highly specific, accurate tech skill.
+Here is your complete, step-by-step orchestration to build the projects, tailor the resumes, and land the interviews.
+Phase 1: Setting Up Your "AI Command Center" (Day 1)
+We are going to configure both Claude Pro (for strategy/resumes) and Claude Code (for building apps) to work together.
+Step 1: Configure Claude Pro (The Strategist)
+Open Claude Pro and create a New Project named "Career Copilot".
+Upload Knowledge: Upload your current Resume (PDF) and a text file named Genpact_Brain_Dump.txt. In this text file, write down every macro, tool, and process you built at Genpact. (e.g., "Built Python script to extract SAP ALV reports and push to PowerBI, saving 10 hours a week").
+Set Project Instructions: Paste this exact prompt into the Project Instructions:
+"You are an expert Technical Recruiter and Resume Writer for the FinTech and B2B SaaS industry. I am a 2 YOE engineer with an MSc in CS, transitioning from Genpact (AR/AP/R2R domain) into high-paying Solutions Engineering, Technical BA, or Automation roles. When I paste a Job Description, you will: 1. Rewrite my resume bullet points to match the JD's keywords. 2. Rebrand my SAP experience as 'ERP Data Integration & Pipeline Automation'. 3. Emphasize my use of AI agents to build tools 5x faster. Keep it metrics-driven and punchy."
+Step 2: Configure Claude Code (The Builder)
+Open your terminal and ensure Claude Code is running.
+Create a new folder for your portfolio: mkdir fintech-portfolio && cd fintech-portfolio.
+Initialize git: git init.
+Create a file named CLAUDE.md and paste this:
+markdown
+1234567891011
+Phase 2: Building the "Proof of Work" App (Days 2-5)
+You need one killer app deployed live. This app will bypass the "3+ years" filter because founders/hiring managers will see it and realize you can do the job on Day 1.
+Prompt Claude Code in your terminal:
+"Read the CLAUDE.md file. Let's build the FinClose AI app. First, initialize a Next.js 14 app with TypeScript and Tailwind. Install shadcn/ui. Create a professional dashboard layout with a sidebar containing 'R2R Close Tracker' and 'AP Anomaly Detector'. Make the UI look like a premium B2B SaaS product (clean, lots of whitespace, subtle borders)."
+Next Prompt (The Database):
+"Set up Supabase integration. Create a SQL schema for an 'AP_Invoices' table (id, vendor, amount, invoice_date, status, po_number) and an 'R2R_Tasks' table (id, task_name, assignee, status, deadline). Write a seed script to populate these tables with 20 rows of realistic finance data."
+Next Prompt (The "AI" Feature):
+"Create a page for the AP Anomaly Detector. Build a file upload component for CSVs. Write a backend API route in Next.js that reads the CSV, checks for duplicate invoice numbers or exact duplicate amounts for the same vendor, and returns a list of 'Flagged Anomalies' to the frontend to display in a red warning table."
+Deploy It:
+Push the code to GitHub. Connect the repo to Vercel.com. You now have a live URL (e.g., finclose-ai.vercel.app). This is your golden ticket.
+Phase 3: The Automated Job Search & Tailoring Engine (Days 6-8)
+Since auto-applying via bots gets you banned by LinkedIn, we will build an Automated Sourcing & Tailoring Pipeline.
+Step 1: Sourcing the Right Jobs
+Stop using the "Easy Apply" button. Use Claude Code to write a quick Python script to find startup jobs.
+Prompt Claude Code:
+"Write a Python script using the requests and BeautifulSoup libraries (or the Remotive/Adzuna API) to search for remote or Kolkata-based jobs with keywords: 'Solutions Engineer', 'Technical Business Analyst', 'Implementation Consultant', 'FinTech'. Filter for companies with 11-50 employees (startups/mid-market). Save the results (Company, Role, Link, Description) to a CSV file."
+Run this script. It will generate a list of 50-100 highly relevant jobs where the "3+ years" filter is much more relaxed.
+Step 2: The 60-Second Resume Tailoring Loop
+Now, use your Claude Pro "Career Copilot" project.
+Open the project.
+Paste the Job Description from your CSV.
+Prompt: "Here is the JD. Generate a tailored version of my resume. Highlight my Genpact AR/AP/R2R experience, rebrand my SAP linking as ERP Integration, and emphasize my AI-augmented development speed. Output the exact bullet points I should replace on my resume."
+Update your master Word doc, save it as FirstName_LastName_CompanyName_Resume.pdf.
+Phase 4: The "Skip-The-Line" Application Strategy (Days 9-14)
+Do not just apply through the portal. You are going to use the "Proof of Work" Cold Outreach Method. This has a 10x higher response rate than standard applications.
+How to execute:
+Find the job on their careers page and apply through the portal (to get in the ATS system).
+Go to LinkedIn. Search for the company. Find the Head of Engineering, VP of Finance, or Founder/CEO (for startups).
+Send them this exact connection request/InMail:
+Subject/Note: Built an R2R/AP automation tool for [Company Name]
+"Hi [Name], I saw [Company] is hiring for a [Role]. I spent the last 2 years at Genpact building automation for AR/AP/R2R workflows, and I recently built a live FinTech dashboard to track month-end close and AP anomalies using Next.js and AI agents. I know you need someone who understands the finance domain and can build fast. Here is the live app: [Your Vercel Link]. I've also attached my tailored resume. Would love to chat if this aligns with your roadmap."
+Why this works: You aren't asking for a job. You are showing them a working product that solves their exact problem. Even if they don't have a job open, they might create one for you.
+Phase 5: Cracking the Interview (Day 15+)
+Once the interviews start rolling in, you use Claude to prep. You don't need to grind LeetCode. You need to prep for Domain + System Design + Behavioral.
+Prompt Claude Pro:
+"I have an interview for a Solutions Engineer role at a FinTech startup. The job description is [Paste JD]. Act as the hiring manager. Ask me 5 tough interview questions that test my knowledge of AR/AP workflows, my ability to integrate with ERPs like SAP, and how I use AI to build tools. Wait for my answer to each question, then grade my response and tell me how to improve it."
+Your Core Interview Narrative (Memorize this):
+When they ask, "Tell me about yourself," you say:
+"I have an MSc in Computer Science, but my real expertise is at the intersection of finance and technology. For the past two years at Genpact, I’ve been in the trenches of AR, AP, and R2R. I realized that standard developers don't understand the pain of a month-end close or a 3-way match in AP. So, I started building my own Python macros and AI-augmented tools to automate these processes, saving my team hundreds of hours. I'm looking to bring this exact blend of deep finance domain knowledge and rapid, AI-assisted technical execution to [Company Name] as a [Role]."
+Summary of Your Orchestration:
+Claude Pro acts as your Resume Writer and Interview Coach.
+Claude Code acts as your Software Engineer, building your portfolio app in days.
+Python Scripts (written by Claude Code) act as your Job Sourcer.
+You act as the Closer, sending the cold emails with the live app link.
+By executing this plan, you completely bypass the traditional HR filters. You aren't a 2 YOE candidate asking for a chance; you are an AI-augmented FinTech engineer who just handed them a working prototype. Start Phase 1 today.
+analyze the whole situation and be realistic on how should i go ahead with my carrer as i feel my pay is too low and i need the hike and also a role where i can excel i am ready to learn
+
+Thinking completed
+Let’s take a deep breath and look at your situation with absolute, unfiltered realism.
+You are in a highly advantageous position, but you are also walking into a few classic traps that could cost you the hike you deserve. Your current CTC (5.5 - 6 LPA) is an "operations/KPO" salary. Your MSc in CS and your actual day-to-day work (Python, automation, solution design) belong in a "tech/product" salary band.
+Here is the brutal reality of the Indian job market, followed by the exact, realistic roadmap to get you to 12 - 16 LPA (a 100%+ hike) in Kolkata or Remote.
+🚨 The 3 Reality Checks You Must Accept First
+1. The "AI-Augmented" Trap in Interviews
+You mentioned you use AI to code instead of writing from scratch, and you believe this makes you faster. In a portfolio, this is a superpower. In a technical interview, it is a trap.
+If you tell an interviewer, "I use Claude to write my code," their immediate thought will be: "This person is a prompter, not an engineer. If the AI hallucinates or the code breaks in production, they won't know how to fix it."
+The Fix: You must change your narrative. You don't "let AI code for you." You "use AI to accelerate boilerplate generation so you can focus on system architecture, complex business logic, and edge-case debugging." More importantly, you must understand every single line of code the AI writes. If they ask you to explain the time complexity of a Python script you built, you must be able to explain it. Use Claude to teach you the code, not just write it.
+2. The "Current CTC" Anchor
+Indian HR is ruthless about the 30% hike rule. If you say your CTC is 6 LPA, their brain will cap your offer at 8 LPA.
+The Fix: You must frame this as a Domain Switch, not a standard job switch. You are moving from an "Operations/Process" pay band to a "Core Tech/FinTech" pay band. You must anchor your expectations to the market rate for the role, not your past salary. (More on how to say this below).
+3. The "3+ Years & SAP Fluency" Filter
+You are right; you will get auto-rejected by ATS (Applicant Tracking Systems) for roles demanding 3+ years or deep SAP configuration.
+The Fix: Stop applying to those roles. You are aiming for the "Sweet Spot" roles (detailed below) where 2 years of highly relevant domain experience beats 3 years of generic experience.
+🎯 The Realistic "Sure-Shot" Roles for Your Profile
+Forget "Software Engineer" or "SAP Consultant". Here are the roles where your Genpact AR/AP/R2R experience + Python/Macros + MSc CS makes you a top 1% candidate.
+1. Technical Business Analyst (Finance / ERP)
+What you do: You talk to the finance team, understand their AR/AP pain points, and write the technical requirements for the dev team to build the solution. You bridge the gap.
+Why you: Pure BAs don't know tech. Pure techies don't know what "R2R month-end close" means. You know both.
+Skills needed: SQL (must learn if you don't know it), Advanced Excel, basic Python, Jira/Confluence, and your Genpact domain knowledge.
+2. Intelligent Automation / RPA Developer
+What you do: You build the macros and tools you are already building, but using enterprise tools (Python, UiPath, PowerAutomate) and integrating them via APIs.
+Why you: You already do this at Genpact. You just need to formalize it.
+Skills needed: Python (Pandas, Requests library for APIs), basic understanding of REST APIs, and maybe a certification in UiPath or PowerAutomate (takes 2 weeks to learn).
+3. Finance Systems Analyst / Data Analyst (FinTech)
+What you do: You pull data from SAP/Oracle using SQL, clean it using Python, and build dashboards in PowerBI/Tableau for the finance controllers.
+Why you: You know exactly what metrics the finance controllers care about because you've worked with them.
+Skills needed: SQL (Non-negotiable, learn it this weekend), Python for data manipulation, PowerBI.
+🗺️ The End-to-End Execution Plan (Next 30 Days)
+Week 1: Skill Bridging & Resume Re-engineering
+You said you are ready to learn. Here is exactly what you need to learn to justify a 12+ LPA salary:
+SQL: You must be able to write JOINs, GROUP BY, and Window Functions. (Use W3Schools or LeetCode SQL 50). Finance data lives in SQL.
+APIs: Learn how to use Python's requests library to pull data from a REST API and push it to a database. This replaces your "SAP linking" experience with a highly sought-after tech skill.
+The Resume: Rewrite your Genpact experience.
+Old: "Built macros for AR team."
+New: "Engineered Python-based automation pipelines for Accounts Receivable, integrating with SAP via middleware to reduce manual reconciliation time by 40%."
+Week 2: The Kolkata "Captive Unit" Strategy
+Kolkata is a goldmine for Captive Units (Global companies that have their own tech hubs in Kolkata). They pay much better than local IT service companies and they love finance domain knowledge.
+Target Companies in Kolkata: Wells Fargo, JPMorgan Chase, State Street, Goldman Sachs, Deloitte USI, EY, PwC, Cognizant (Product teams), Genpact (Digital/Tech divisions).
+Action: Go to LinkedIn. Search for "Technical Business Analyst Wells Fargo Kolkata" or "Data Analyst JPMorgan Kolkata".
+The Hack: Do not just apply. Find "Talent Acquisition [Company Name] Kolkata" on LinkedIn. Send them a message: "Hi [Name], I'm a Genpact Specialist with an MSc in CS, specializing in Python automation and solution design for AR/AP/R2R. I see [Company] is hiring for Finance Tech roles in Kolkata. My domain expertise aligns perfectly. Here is my resume."
+Week 3: The Remote Startup Strategy
+For remote roles paying 15+ LPA, you need to target US/UK FinTech startups.
+Where to look: Wellfound.com (formerly AngelList), Y Combinator "Work at a Startup", and LinkedIn (Filter: Remote, Location: EMEA or Worldwide).
+Target Roles: "Implementation Engineer", "Solutions Engineer", "Technical Account Manager" at B2B FinTechs (companies that make accounting, invoicing, or expense management software).
+The Pitch: "I have an MSc in CS and I've spent 2 years in the trenches of AR/AP at Genpact. I can talk to your clients' CFOs in their language, and I can write the Python scripts to integrate your software with their ERPs."
+Week 4: Cracking the Interview & Negotiating the Hike
+When you get the interview, here is how you handle the tough questions.
+Question 1: "What is your current CTC?"
+Your Answer: "My current CTC is 5.5 LPA. However, that compensation is based on an operations/process band at a KPO. Because I am now transitioning into a core technical/product role leveraging my MSc in Computer Science and my Python/Automation skills, I am looking for compensation aligned with the market standards for this technical bracket, which is in the range of 13 to 16 LPA." (Say it confidently. Do not apologize for your current salary).
+Question 2: "You only have 2 years of experience, this role needs 3."
+Your Answer: "While I have 2 years of official tenure, the density of my experience is much higher. At Genpact, I wasn't just maintaining systems; I was actively designing solution architectures for AR/AP workflows and building the Python automation tools from scratch. I bring the domain expertise of a 3-year finance veteran combined with the technical agility of a CS Master's grad."
+Question 3: "How do you use AI to code?"
+Your Answer: "I treat AI as a highly productive junior developer. I use tools like Claude Code to rapidly scaffold boilerplate, generate unit tests, and accelerate my development lifecycle. However, I act as the Senior Engineer: I define the architecture, I review the code for security and edge cases, and I do the complex debugging. It allows me to deliver production-ready tools in days rather than weeks, without compromising on code quality."
+The Bottom Line
+You are severely underpaid, but you have the exact raw materials to fix it.
+Stop thinking of yourself as a "Genpact Specialist who builds macros."
+You are a Finance-Tech Solutions Engineer.
+Your immediate homework for this weekend:
+Learn basic SQL (Joins and Aggregations).
+Rewrite your resume to highlight Python, Automation, and AR/AP Domain Expertise.
+Make a list of 10 Captive Banks/Big 4 in Kolkata and 10 Remote FinTech Startups.
+You have the degree, you have the domain knowledge, and you have the modern AI mindset. Execute this plan, hold your ground on the salary negotiation, and you will easily cross the 12-15 LPA mark. You've got this.
