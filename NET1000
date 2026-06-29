@@ -1,0 +1,26 @@
+Open PeopleSoft HR and run the query "Net_Greater_Than_10000 " using the appropriate Run ID.
+Download the resulting Excel file.
+Open Execel file ,Use filter in 1st row
+Using  filter option   Remove '4 to 7 & X ' grade employee from 'P' column 
+Filter values  more than 10000 Inn 'J' column.
+If values more than 10000, then add extra column and multply 'N' column to '80' for every line  item
+if valus comes less than 10000 in additional column ,but their total income for RGP in 'K'  column is more than 10000 valueshighlight the cells.
+
+
+and the reply i got is this from the team
+
+Hello Sharan,
+
+- Column P holds employee grade, and I'm removing grades 4 to 7 and X – correct
+Yes
+- Column J is the net value I filter for greater than 10000 correct
+Yes
+- Step 6 multiplies column N by 80. What does the 80 represent, and what's the new column used for / what should it be named?
+
+For cross validation, we add an extra ‘Hours’ column and enter 80, which represents the maximum number of hours an employee can work in a bi weekly payroll. We then multiply these hours by the pay rate to calculate the maximum amount the employee can earn for regular hours. If the net amount exceeds this value, it indicates an incorrect RGP earning code—unless the additional amount is due to other earnings such as HLD, OT, VAT, SIN, etc.
+- Step 7: column K is the total RGP income. Can you spell out the exact highlight rule - highlight when the extra column is under 10000 but K is over 10000
+
+As per our step 6 discussion if RGP amount more than 10000 highlight when the extra column is under 10000 but K is over 10000
+- Final output - flagged/highlighted file, or a separate exceptions list
+
+  Final Output flagged/highlighted in same file
