@@ -24,3 +24,14 @@ As per our step 6 discussion if RGP amount more than 10000 highlight when the ex
 - Final output - flagged/highlighted file, or a separate exceptions list
 
   Final Output flagged/highlighted in same file
+
+
+
+
+
+sample rows with headers also the data the headers are in row 2 and data starts from row 3 
+
+Co	Group	Pay Period End	Off Cycle	Sep Check Nbr	ID	Tot Gross	Total Taxes	Total Ded.	Net Pay	Earn Code	Oth Earns	Pay Run ID	Hrly Rate	TL Src Flg	Grade	Annual Rt	Hrly Rate	Job Code	Hrs		
+L09	184	6/12/2026	N	0	644698	12280.76	4537.22	1355.39	6388.15	RGP	130000.00	B04260612	153.509615	T	PM7	319300.000	153.509615	PMM7	80	12280.7692	FALSE
+L09	184	6/12/2026	N	0	644698	12280.76	4537.22	1355.39	6388.15	RGP	6140.38	B04260612	153.509615	T	PM7	319300.000	153.509615	PMM7	80	12280.7692	TRUE
+L09	184	6/12/2026	N	0	644698	12280.76	4537.22	1355.39	6388.15	RGP	6140.38	B04260612	153.509615	T	PM7	319300.000	153.509615	PMM7	80	12280.7692	TRUE
