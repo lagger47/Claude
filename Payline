@@ -1,0 +1,51 @@
+S. No.	Process Steps												
+1	After final calc 												
+2	Open PeopleSoft HR and run the query "Pay_line_detail " using the appropriate Run ID.												
+3	Download the resulting Excel file.												
+4	Open Execel file ,Use filter in 1st row												
+5	Navigate to Z drive → Genpact → USA → B04 → last PPE folder → output → final reports, and open the Excel file named _Pay_line_detail from the previous payroll.												
+6	Use VLOOKUP to pull the values from column V of the previous payroll file into the currentPay_line_detail Excel file.												
+7	Compare the data using a TRUE/FALSE match check.												
+8	Filter for FALSE and #N/A results.												
+9	Validate the unmatched amounts against PeopleSoft and backup file data.												
+10	Ensure each line item should be matched with prevoius final calc data.												
+
+
+
+
+the email i had sent 
+Hi Debajyoti,
+
+I'm ready to build the Excel macro for the Pay_Line_Detail reconciliation. The PeopleSoft query and file download will stay manual, and the macro will prompt the user to pick the current and previous files so that's covered. I just need a few details to lock in the logic:
+
+•	Lookup key for the VLOOKUP - Employee ID, pay line, or a combination? And can one employee have multiple lines?
+•	Sheet name and where the data starts
+•	Which columns get compared - exact match or within a tolerance
+•	What to do with False / #N/A rows - highlight, separate tab, or reason code
+•	Is the Step 9 validation a manual judgment call or a rule the macro can apply
+•	Final output you want - cleaned file, exceptions report, or summary count
+
+Also, it would be helpful if you can share the sample files with me.
+Once I have these, I'll map out the build and share an estimate.
+
+
+reply from the team 
+
+Hello Sharan, 
+
+1. Lookup key for the VLOOKUP - Employee ID, pay line, or a combination? And can one employee have multiple lines?
+Yes , one employee have multiple lines that’s why, we use Pivot table for both Consolidated file & Payline Detail File Use VLOOKUP with the help of earn code.
+2. Consolidated file                      
+Payline
+                    
+Data save in Audit Folder according to RUN ID
+3. A-Filter ‘Y’ in PAY & in Tl Src Flag D,M & U for exact match or within a tolerance (Working 1) {Here the D,M & U stands for data comes which department}
+   B- Filter ‘Y’ in PAY & in Tl Src Flag A & T for exact match or within a tolerance (Working 2)
+ 
+
+
+4. For False highlight in red color with differences & reason code in column 
+   #N/A rows – highlight in other color with reason code & find in which sheet the data flow 
+
+5. For Step 9 validation a macro rule can apply to find the unmatched amount with all backup files.
+6. Final output you want - summary count.
