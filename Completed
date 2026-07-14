@@ -1,0 +1,43 @@
+Seq#	Date	LOB	Service Tower	Process	Sub-Process	Problem/ idea statement	Value (FTE)
+LDT_005	1-Apr-25	GBS	GL	Account Reconciliations	IBS Reconiliation	Automate IBS reonciliations	0.63
+LDT_004	1-Apr-25	IAG	GL	Account Reconciliations	IBS Reconiliation	Automate IBS reConciliations	0.59
+LDT_032	10-May-25	GBS	GL	Account Reconciliations	Bank Recon	Citibank Bank Reconciliation - Data Preparation	0.2
+LDT_033	10-May-25	GBS	GL	Account Reconciliations	Bank Recon	JP Morgan Bank Recon	0.15
+LDT_073	5-Sep-25	Global	Overall	Reporting	Reporting	WAM Reporting	0.13
+LDT_049	16-Jun-25	GBS	Payroll	Payroll	Payroll process	INACTIVE_PAID_CK – Querry	0.13
+LDT_042	1-May-25	GBS	Payroll	Payroll	Payroll process	Time & Labour	0.09
+LDT_047	1-May-26	GBS	Payroll	Payroll	Payroll process	Load File activity	0.03
+LDT_012	1-Apr-25	GBS	Payroll	Payroll	Input data upload	Pakistan Variable Sheet	0.02
+LDT_034	1-Apr-25	GBS	Payroll	Payroll	Canada Payroll	MEP77	0.01
+LDT_038	1-Apr-25	GBS	Payroll	Payroll	Canada Payroll	AMFA DUES 	0.01
+LDT_039	1-Apr-25	GBS	Payroll	Payroll	Canada Payroll	AMFA RRFP 	0.01
+LDT_024	1-Apr-25	IAG	GL	Intercompany/Interdivisional Accounting	IBS AP Settlement	Mark NH & Mark Paid - Phase 1	0
+LDT_044	10-May-25	GBS	Payroll	Payroll	Payroll process	Step Tracker_Stock	0
+LDT_045	10-May-25	GBS	Payroll	Payroll	Payroll process	Step Tracker_On Cycle	0
+LDT_046	10-May-25	GBS	Payroll	Payroll	Payroll process	Step Tracker_Off Cycle	0
+LDT_020	1-Apr-25	IAG	GL	Account Reconciliations	Log Book Standardization	Standardization of AP Log book file	0.02
+LDT_021	1-Apr-25	IAG	GL	Account Reconciliations	AP Tracker Optimization	Preparing AP Invoice tracker	0.12
+LDT_022	1-Apr-25	IAG	GL	Account Reconciliations	Margin Checking- India	Standardization in the margin checking file	0.01
+LDT_027	1-Apr-25	IAG	GL	Account Reconciliations	Stat book Optimization	Standardization in STAT book Files	0.02
+LDT_080	16-Jun-26	GBS	Payroll	On-cycle	NET > 10000	Net >10000	0.01
+LDT_081	16-Jun-26	GBS	Payroll	On-cycle	Earntime > 10000	Earntime >10000	0.01
+
+
+
+Status	(All)	
+		
+Row Labels	No of ideas	Sum of Value (FTE)
+GBS	15	1.3
+Global	1	0.13
+IAG	6	0.76
+Grand Total	22	2.19
+		
+		
+LOB	(All)	
+Status	(All)	
+		
+Row Labels	Sum of Value (FTE)	No of ideas
+GL	1.74	9
+Overall	0.13	1
+Payroll	0.32	12
+Grand Total	2.19	22
