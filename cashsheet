@@ -1,0 +1,271 @@
+' ==================================================================
+' BANK IMPORT & VALIDATION TOOL
+' For: Sharan Shah
+' ==================================================================
+
+' --------------------------
+' BUTTON MACROS (PUBLIC)
+' --------------------------
+Sub ImportCitiBank()
+    ProcessImport "Citi Bank"
+End Sub
+
+Sub ImportJPMorgan()
+    ProcessImport "JP Morgan"
+End Sub
+
+Sub ValidateBankEntries()
+    Dim bankWb As Workbook, cashWb As Workbook
+    Dim wsBank As Worksheet, wsCash As Worksheet
+    Dim bankPath As String, cashPath As String
+    Dim bankName As String
+    Dim lastBankRow As Long, i As Long
+    Dim missingCount As Long
+    
+    ' Select bank
+    bankName = InputBox("Enter Bank Name:" & vbCrLf & "Type exactly: Citi Bank   or   JP Morgan", "Validate")
+    If bankName <> "Citi Bank" And bankName <> "JP Morgan" Then
+        MsgBox "Invalid bank name.", vbExclamation
+        Exit Sub
+    End If
+
+    ' Select bank file
+    With Application.FileDialog(msoFileDialogFilePicker)
+        .Title = "Select " & bankName & " Bank Statement (must have 'Details' sheet)"
+        .Filters.Add "Excel Files", "*.xlsx; *.xlsm"
+        .AllowMultiSelect = False
+        If .Show <> -1 Then Exit Sub
+        bankPath = .SelectedItems(1)
+    End With
+
+    ' Select cash file
+    With Application.FileDialog(msoFileDialogFilePicker)
+        .Title = "Select Cash Sheet file (must have 'Cash Sheet' worksheet)"
+        .Filters.Add "Excel Files", "*.xlsx; *.xlsm"
+        .AllowMultiSelect = False
+        If .Show <> -1 Then Exit Sub
+        cashPath = .SelectedItems(1)
+    End With
+
+    Set bankWb = Workbooks.Open(bankPath)
+    Set cashWb = Workbooks.Open(cashPath)
+
+    On Error Resume Next
+    Set wsBank = bankWb.Worksheets("Details")
+    Set wsCash = cashWb.Worksheets("Cash Sheet")
+    On Error GoTo 0
+
+    If wsBank Is Nothing Or wsCash Is Nothing Then
+        MsgBox "Required sheet missing!", vbCritical
+        GoTo Cleanup
+    End If
+
+    Application.ScreenUpdating = False
+    missingCount = 0
+
+    ' Build dictionary of Cash Sheet entries: Key = "YYYYMMDD|AMOUNT"
+    Dim dictCash As Object
+    Set dictCash = CreateObject("Scripting.Dictionary")
+    
+    Dim lastCashRow As Long
+    lastCashRow = wsCash.Cells(wsCash.Rows.Count, "B").End(xlUp).Row
+    For i = 2 To lastCashRow
+        Dim cashDate As Variant, cashAmt As Variant
+        cashDate = wsCash.Cells(i, "B").Value
+        cashAmt = wsCash.Cells(i, "K").Value
+        
+        If IsDate(cashDate) And IsNumeric(cashAmt) Then
+            Dim cashKey As String
+            cashKey = Format(cashDate, "yyyymmdd") & "|" & Format(cashAmt, "0.00")
+            If Not dictCash.Exists(cashKey) Then dictCash.Add cashKey, True
+        End If
+    Next i
+
+    ' Check each row in Bank Details sheet
+    lastBankRow = wsBank.Cells(wsBank.Rows.Count, "C").End(xlUp).Row
+    For i = 2 To lastBankRow
+        Dim transDate As Variant, transAmt As Variant
+        
+        If bankName = "Citi Bank" Then
+            transDate = wsBank.Cells(i, "R").Value
+            transAmt = wsBank.Cells(i, "GH").Value
+        Else ' JP Morgan
+            transDate = wsBank.Cells(i, "F").Value
+            transAmt = wsBank.Cells(i, "K").Value
+        End If
+
+        If IsDate(transDate) And IsNumeric(transAmt) Then
+            Dim bankKey As String
+            bankKey = Format(transDate, "yyyymmdd") & "|" & Format(transAmt, "0.00")
+            
+            If Not dictCash.Exists(bankKey) Then
+                wsBank.Rows(i).Interior.Color = RGB(255, 255, 0) ' Yellow highlight
+                missingCount = missingCount + 1
+            Else
+                wsBank.Rows(i).Interior.ColorIndex = xlNone
+            End If
+        Else
+            ' Invalid data ? treat as missing
+            wsBank.Rows(i).Interior.Color = RGB(255, 255, 0)
+            missingCount = missingCount + 1
+        End If
+    Next i
+
+    bankWb.Save
+    cashWb.Close SaveChanges:=False
+    bankWb.Close SaveChanges:=True
+    Application.ScreenUpdating = True
+
+    If missingCount = 0 Then
+        MsgBox "? All " & (lastBankRow - 1) & " entries from " & bankName & " are present in Cash Sheet!" & vbCrLf & _
+               "Validation based on: Date + Amount match.", vbInformation
+    Else
+        MsgBox "?? " & missingCount & " out of " & (lastBankRow - 1) & " entries from " & bankName & " are MISSING." & vbCrLf & _
+               "Missing rows are highlighted in YELLOW in the bank file.", vbCritical
+    End If
+
+Cleanup:
+    If Not cashWb Is Nothing Then cashWb.Close SaveChanges:=False
+    If Not bankWb Is Nothing Then bankWb.Close SaveChanges:=True
+End Sub
+
+' ==================================================================
+' PRIVATE IMPORT ENGINE (USED BY BOTH BANKS)
+' ==================================================================
+Private Sub ProcessImport(bankName As String)
+    Dim cashWb As Workbook, bankWb As Workbook
+    Dim wsCash As Worksheet, wsBank As Worksheet
+    Dim cashPath As String, bankPath As String
+    Dim dictKeys As Object
+    Set dictKeys = CreateObject("Scripting.Dictionary")
+    
+    ' Variable declarations
+    Dim lastIDCell As Range, lastCashRow As Long, lastBankRow As Long
+    Dim i As Long, nextRowDest As Long, nextDepositID As Long
+    Dim accNum As String, customer As String, curr As String
+    Dim dtRec As Variant, amtVal As Variant, key As String
+
+    ' --- Step 1: Select Cash Sheet file ---
+    With Application.FileDialog(msoFileDialogFilePicker)
+        .Title = "Select Cash Sheet file (must contain 'Cash Sheet' worksheet)"
+        .Filters.Clear
+        .Filters.Add "Excel Files", "*.xlsx; *.xlsm"
+        .AllowMultiSelect = False
+        If .Show <> -1 Then Exit Sub
+        cashPath = .SelectedItems(1)
+    End With
+
+    Set cashWb = Workbooks.Open(cashPath)
+    On Error Resume Next
+    Set wsCash = cashWb.Worksheets("Cash Sheet")
+    On Error GoTo 0
+    If wsCash Is Nothing Then
+        MsgBox "'Cash Sheet' worksheet not found!", vbCritical
+        cashWb.Close SaveChanges:=False
+        Exit Sub
+    End If
+
+    ' --- Get next Deposit ID ---
+    Set lastIDCell = wsCash.Cells(wsCash.Rows.Count, "A").End(xlUp)
+    If IsNumeric(lastIDCell.Value) And Not IsEmpty(lastIDCell.Value) Then
+        nextDepositID = CLng(lastIDCell.Value) + 1
+    Else
+        nextDepositID = 1
+    End If
+
+    ' --- Load existing keys from Cash Sheet (Account|Date|Amount) ---
+    lastCashRow = wsCash.Cells(wsCash.Rows.Count, "D").End(xlUp).Row
+    If lastCashRow >= 2 Then
+        For i = 2 To lastCashRow
+            accNum = Trim(wsCash.Cells(i, "D").Text)
+            dtRec = wsCash.Cells(i, "B").Value
+            amtVal = wsCash.Cells(i, "K").Value
+            If accNum <> "" And dtRec <> "" And Not IsEmpty(amtVal) Then
+                key = accNum & "|" & Format(dtRec, "yyyymmdd") & "|" & Format(amtVal, "0.00")
+                dictKeys(key) = i
+            End If
+        Next i
+    End If
+
+    ' --- Step 2: Select Bank file ---
+    With Application.FileDialog(msoFileDialogFilePicker)
+        .Title = "Select " & bankName & " Statement (must have 'Details' sheet)"
+        .Filters.Clear
+        .Filters.Add "Excel Files", "*.xlsx; *.xlsm"
+        .AllowMultiSelect = False
+        If .Show <> -1 Then
+            cashWb.Close SaveChanges:=False
+            Exit Sub
+        End If
+        bankPath = .SelectedItems(1)
+    End With
+
+    Set bankWb = Workbooks.Open(bankPath)
+    On Error Resume Next
+    Set wsBank = bankWb.Worksheets("Details")
+    On Error GoTo 0
+    If wsBank Is Nothing Then
+        MsgBox "'Details' sheet not found in bank file!", vbCritical
+        bankWb.Close SaveChanges:=False
+        cashWb.Close SaveChanges:=False
+        Exit Sub
+    End If
+
+    Application.ScreenUpdating = False
+    nextRowDest = IIf(lastCashRow < 2, 2, lastCashRow + 1)
+    lastBankRow = wsBank.Cells(wsBank.Rows.Count, "C").End(xlUp).Row
+
+    ' --- Process each bank row ---
+    For i = 2 To lastBankRow
+        If bankName = "Citi Bank" Then
+            customer = wsBank.Cells(i, "C").Value
+            accNum = Trim(wsBank.Cells(i, "F").Value)
+            curr = wsBank.Cells(i, "I").Value
+            dtRec = wsBank.Cells(i, "R").Value
+            amtVal = wsBank.Cells(i, "GH").Value
+        Else
+            curr = wsBank.Cells(i, "C").Value
+            accNum = Trim(wsBank.Cells(i, "D").Value)
+            customer = wsBank.Cells(i, "E").Value
+            dtRec = wsBank.Cells(i, "F").Value
+            amtVal = wsBank.Cells(i, "K").Value
+        End If
+
+        ' Skip invalid rows
+        If accNum = "" Or dtRec = "" Or IsEmpty(amtVal) Then GoTo SkipRow
+
+        key = accNum & "|" & Format(dtRec, "yyyymmdd") & "|" & Format(amtVal, "0.00")
+
+        If dictKeys.Exists(key) Then
+            ' Highlight existing duplicate in Cash Sheet (light red)
+            wsCash.Rows(dictKeys(key)).Interior.Color = RGB(255, 200, 200)
+        Else
+            ' Add new entry
+            With wsCash
+                .Cells(nextRowDest, "A").Value = nextDepositID
+                .Cells(nextRowDest, "B").Value = dtRec
+                .Cells(nextRowDest, "C").Value = ""
+                .Cells(nextRowDest, "D").Value = accNum
+                .Cells(nextRowDest, "E").Value = bankName
+                .Cells(nextRowDest, "F").Value = ""
+                .Cells(nextRowDest, "G").Value = ""
+                .Cells(nextRowDest, "H").Value = customer
+                .Cells(nextRowDest, "I").Value = ""
+                .Cells(nextRowDest, "J").Value = curr
+                .Cells(nextRowDest, "K").Value = amtVal
+            End With
+            dictKeys(key) = nextRowDest
+            nextDepositID = nextDepositID + 1
+            nextRowDest = nextRowDest + 1
+        End If
+
+SkipRow:
+    Next i
+
+    bankWb.Close SaveChanges:=False
+    cashWb.Save
+    cashWb.Close SaveChanges:=True
+    Application.ScreenUpdating = True
+    MsgBox "? " & bankName & " import complete!", vbInformation
+End Sub
+
