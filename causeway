@@ -1,0 +1,227 @@
+Causeway
+
+Standalone desktop application for Finance Operations teams (R2R, AP, O2C) to log issues, run structured root cause analysis, track corrective actions, and generate governance reports — with no server, no cloud, and no IT infrastructure request.
+
+Read this file fully before writing code. It encodes decisions that are already settled; do not re-litigate them mid-build.
+
+1. Who uses this
+
+Three personas. Screens are organised around them, not around database tables.
+
+Agent / SME — logs an issue or near-miss and moves on. Must complete in under 60 seconds. If this flow gets slower, the whole tool fails.
+
+Front Line Manager (FLM) — owns the RCA, assigns corrective actions, chases closure. Opens the app most mornings. Primary user.
+
+Ops Leader — never enters data. Consumes the dashboard and generates the monthly governance pack. Uses leader mode (see §4).
+
+2. Non-negotiables
+
+These constraints must not be violated. If a feature request conflicts with one of these, stop and flag it rather than working around it.
+
+No network calls. No cloud services, no telemetry, no CDN-hosted assets, no auto-update checks. All JS/CSS libraries are vendored into the repo. The app must run fully on a machine with the network cable pulled.
+No concurrent writes to any single database file. See §4.
+Under 60 seconds to log a Tier C issue. Measure this. It is the adoption gate.
+Every write produces an audit log row. Non-negotiable for client audits.
+No real client data in the repository. Build and demo against synthetic seed data only. Ever.
+Taxonomy is configuration, not code. Towers, processes, cause categories and severity thresholds live in YAML. The app must redeploy to a different client account with a config swap and nothing else.
+The packaged executable is the deliverable. Not python main.py. If it does not run frozen, it is not done.
+3. Tech stack
+Layer	Choice	Notes
+Language	Python 3.11	
+API	FastAPI on 127.0.0.1, ephemeral port	Bind to loopback only
+ORM	SQLAlchemy 2.x	
+Database	SQLite	One file per user shard
+Shell	pywebview	Native window, app icon, no browser chrome
+Frontend	Vanilla HTML + JS, no framework	Keep it boring and debuggable
+Charts	ECharts, vendored locally	Never load from CDN
+Reports	python-pptx, reportlab, Jinja2	
+Chart images for reports	matplotlib → PNG	ECharts is browser-only
+Config	PyYAML	
+Packaging	PyInstaller, one-folder mode	One-file is slow to start and trips AV
+
+Pin every dependency version in requirements.txt.
+
+4. Deployment and the shard model
+
+This is the most important architectural decision in the project. Read it twice.
+
+The problem
+
+No server is available. Multiple FLMs need to enter data. The Ops Leader needs a consolidated view. SQLite over SMB corrupts under concurrent writes.
+
+The solution: shard by owner
+
+Every running instance owns exactly one database file and writes only to that file.
+
+<workspace_root>/
+    config/
+        taxonomy.yaml
+        app.yaml
+    shards/
+        cw_AP_sharan.db          <- Sharan's app writes only here
+        cw_R2R_priya.db          <- Priya's app writes only here
+        cw_O2C_arjun.db
+    evidence/
+        AP_sharan/<sha256>.bin
+        R2R_priya/<sha256>.bin
+    exports/
+
+Because no two writers ever touch the same file, there is no lock contention and no corruption risk.
+
+Three workspace modes
+
+Solo — workspace_root is a local folder. One user, zero infrastructure. Works out of the box on first run.
+
+Team — workspace_root is a mapped shared drive. Each user's app creates and writes its own shard. This is the target deployment.
+
+Courier — no shared drive available. Each user exports a .cwx bundle (a zip of their shard plus referenced evidence) and sends it in. The Ops Leader points leader mode at a folder of .cwx files. Same merge logic, different source.
+
+Leader mode
+
+Read-only aggregation. On launch in leader mode the app:
+
+Scans shards/ for cw_*.db (or exports/ for *.cwx).
+Opens each with a read-only URI: sqlite:///file:path?mode=ro&uri=true.
+Checks shard_meta.schema_version; warns and skips on mismatch rather than failing.
+Copies rows into an in-memory aggregate database.
+Runs all dashboard and report queries against the aggregate.
+
+Leader mode never writes to a shard. Enforce this at the session factory level, not by convention.
+
+Always display a freshness strip: owner name, tower, last_write_at, and a stale flag if older than 7 days. A leader must never mistake "nobody updated their shard" for "there were no incidents."
+
+ID collision
+
+Case display IDs must embed the owner code or shards will collide on merge.
+
+Format: {TOWER}-{OWNER_CODE}-{YYYY}-{NNNN} → AP-SM-2026-0042
+
+Primary keys are UUIDv4. The display ID is a separate human-facing column.
+
+5. Severity tiering
+
+The tier is what keeps the tool from becoming a burden. Tier is assigned at intake and determines what the app demands from the user.
+
+Tier	Trigger	Required	Clock
+A	Client-visible, OR value at risk ≥ threshold, OR SLA breached	Full RCA (5 Whys + is/is-not) + corrective and preventive action + effectiveness verification	RCA within 48h
+B	Internally caught and contained, no client impact	5 Whys + corrective action	5 working days
+C	Near-miss or observation	Nothing. Log and auto-close.	None
+
+Thresholds live in taxonomy.yaml. The app proposes a tier from the intake answers and lets the user override upward, never silently downward.
+
+Tier C matters. Near-miss volume is the leading indicator and it is what makes the Pareto chart meaningful. Make logging one genuinely trivial.
+
+6. Data model
+shard_meta      shard_id, owner_name, owner_code, tower, workspace_mode,
+                created_at, last_write_at, schema_version, app_version
+
+case            id (uuid PK), display_id, shard_id, tower, process, sub_process,
+                title, description, severity_tier, detection_source, occurred_on,
+                detected_on, value_at_risk, currency, sla_impacted, client_visible,
+                status, owner, created_by, created_at, updated_at, closed_at
+
+rca             id, case_id, problem_statement, is_statement, is_not_statement,
+                primary_cause_category, contributing_categories (json),
+                completed_by, completed_at
+
+why_step        id, rca_id, seq, question, answer
+
+action          id, case_id, action_type (corrective|preventive), description,
+                owner, due_date, status (open|in_progress|done|verified|failed),
+                completed_on, verification_due, verification_result,
+                verification_on, verified_by
+
+evidence        id, case_id, action_id (nullable), original_filename, sha256,
+                size_bytes, mime_type, visibility (internal|report), version,
+                note, uploaded_by, uploaded_at
+
+initiative      id, title, origin_case_id (nullable), owner, tower,
+                rag_status, start_date, target_date, fte_impact, description
+
+milestone       id, initiative_id, title, due_date, status, completed_on
+
+audit_log       id, entity_type, entity_id, action, field_name,
+                old_value, new_value, actor, at
+
+status on case: draft → investigating → capa_open → verifying → closed. Tier C skips straight to closed.
+
+Evidence storage. Files are content-addressed by SHA-256 and deduplicated — the same attachment across ten cases stores once. visibility controls whether a file appears in a client-facing report; default to internal and require an explicit opt-in to promote. Enforce a per-file size cap from config.
+
+Audit log is append-only. No update or delete paths. Ever.
+
+7. Screens
+Quick log (agent)
+
+Modal. Maximum six fields: tower, sub-process, what happened, when, client-visible (yes/no), value at risk (optional). The app infers the tier and tells the user what happens next. Submit and close.
+
+Duplicate detection at intake
+
+When a case is submitted, immediately surface up to three similar past cases — matched on sub-process plus cause category plus a keyword match on title, within the last 12 months. Show them before the RCA is started, not in a quarterly review. This prevents duplicate RCAs and puts "we have seen this before" in front of the person who can act on it.
+
+My desk (FLM)
+
+The default landing screen. Four stacked sections, most urgent first: overdue items, due this week, RCAs pending, actions awaiting effectiveness verification. If anything is overdue, it renders before anything else on launch.
+
+Case detail
+
+Tabs: Summary, RCA, Actions, Evidence, History. The RCA tab shows 5 Whys as a simple sequential form. The is/is-not framing and fishbone appear only for Tier A, and the fishbone is optional even then — most users will not complete it honestly, and a half-filled fishbone is worse than none.
+
+Dashboard (leader)
+
+Filters across the top: date range, tower, severity, owner. Charts below (see §8).
+
+Reports
+
+Template picker, date range, output format, redaction toggle. Writes to exports/ and offers to open the folder.
+
+Settings
+
+Workspace path, owner identity, mode (solo/team/courier/leader), taxonomy file path, backup and restore.
+
+8. Dashboard metrics
+
+These specific metrics, in this language. They are what an ops leader presents.
+
+Client-detected vs internally caught, as a ratio, trended monthly. The single most persuasive number in a client governance meeting.
+Repeat rate — % of this month's cases whose primary cause category also appeared in the previous six months. Flag repeats explicitly on the case list.
+CAPA closure rate and aging, split by owner.
+Defects per tower, normalised per 1,000 transactions where volume data exists in config; absolute counts otherwise, clearly labelled as such.
+Value at risk in currency, Tier A only.
+Effectiveness verification pass rate — of verified actions, how many held up at the 30/60-day check.
+Pareto of primary cause categories.
+Initiative RAG rollup.
+9. Reports
+Template	Format	Audience
+Single case RCA	PDF	Client-facing
+Monthly governance pack	PPTX	Client / leadership review
+Initiative status	PPTX	Internal
+Dashboard snapshot	Single-file HTML, base64 charts	Email — survives attachment stripping
+
+Client-facing outputs honour the redaction toggle: only visibility = report evidence is referenced, and internal commentary fields are excluded.
+
+The monthly PPTX is the deliverable that justifies the build. It must replace a deck the leader currently assembles by hand.
+
+10. Build order
+
+Vertical slices. Each slice ends with something demoable. Do not build all models, then all routes.
+
+S1 — Skeleton. pywebview shell, first-run wizard, shard creation, quick log, case list. Package this as an EXE before starting S2. Packaging failures found in week eight are expensive; found in week one they are trivial.
+S2 — Case depth. Case detail, 5 Whys, actions with owners and due dates, My desk.
+S3 — Evidence. Drag-drop, hashing, dedupe, visibility flags.
+S4 — Dashboard. ECharts, filters, repeat detection, duplicate-at-intake.
+S5 — Reports. PPTX monthly pack first, then PDF single case, then HTML snapshot.
+S6 — Leader mode. Shard scan, read-only merge, freshness strip, .cwx courier import/export.
+S7 — Initiatives. Deliberately last and deliberately thin.
+11. Conventions
+All paths resolve relative to workspace_root. No absolute paths anywhere in code.
+Config is read once at startup into a typed object; no scattered yaml.load calls.
+Every route that mutates state writes an audit row in the same transaction.
+Seed script generates 200 synthetic cases across three towers and twelve months so the dashboard has something to show on a fresh install.
+Git from the first commit. Never commit *.db, evidence/, or exports/.
+Type hints on all function signatures. ruff for linting.
+12. Known traps
+PyInstaller and pywebview. Hidden imports and data files for the frontend bundle need explicit --add-data entries. Test the frozen build early and often.
+Antivirus. An unsigned PyInstaller binary will be quarantined by corporate AV and SmartScreen. This is an IT whitelisting conversation that takes longer than the development — it should already be in flight.
+SQLite over SMB. Read-only is fine. Concurrent writes are not. The shard model exists specifically to avoid this; do not shortcut it.
+Stale shards. A leader looking at a dashboard where half the team has not saved in three weeks will draw wrong conclusions. The freshness strip is not optional.
+Fishbone theatre. If users are filling the 6M categories with filler to get past the screen, remove it rather than defending it.
