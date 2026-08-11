@@ -1,0 +1,71 @@
+If Not IsObject(application) Then
+   Set SapGuiAuto  = GetObject("SAPGUI")
+   Set application = SapGuiAuto.GetScriptingEngine
+End If
+If Not IsObject(connection) Then
+   Set connection = application.Children(0)
+End If
+If Not IsObject(session) Then
+   Set session    = connection.Children(0)
+End If
+If IsObject(WScript) Then
+   WScript.ConnectObject session,     "on"
+   WScript.ConnectObject application, "on"
+End If
+session.findById("wnd[0]").maximize
+session.findById("wnd[0]/tbar[0]/okcd").text = "/nva01"
+session.findById("wnd[0]").sendVKey 0
+session.findById("wnd[0]/usr/ctxtVBAK-AUART").text = "Z30"
+session.findById("wnd[0]/usr/ctxtVBAK-VKORG").text = "0700"
+session.findById("wnd[0]/usr/ctxtVBAK-VTWEG").text = "01"
+session.findById("wnd[0]/usr/ctxtVBAK-SPART").text = "01"
+session.findById("wnd[0]/usr/ctxtVBAK-SPART").setFocus
+session.findById("wnd[0]/usr/ctxtVBAK-SPART").caretPosition = 2
+session.findById("wnd[0]/tbar[1]/btn[8]").press
+session.findById("wnd[1]/usr/tabsMYTABSTRIP/tabpRFAK/ssubSUB1:SAPLV45C:0304/ctxtVBRK-VBELN").text = "722739811"
+session.findById("wnd[1]/usr/tabsMYTABSTRIP/tabpRFAK/ssubSUB1:SAPLV45C:0304/ctxtVBRK-VBELN").caretPosition = 9
+session.findById("wnd[1]/tbar[0]/btn[5]").press
+session.findById("wnd[0]/usr/subSUBSCREEN_HEADER:SAPMV45A:4021/txtVBKD-BSTKD").text = "722739811"
+session.findById("wnd[0]/usr/subSUBSCREEN_HEADER:SAPMV45A:4021/subPART-SUB:SAPMV45A:4701/ctxtKUAGV-KUNNR").text = "90085"
+session.findById("wnd[0]/usr/subSUBSCREEN_HEADER:SAPMV45A:4021/subPART-SUB:SAPMV45A:4701/ctxtKUWEV-KUNNR").text = "66963"
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\01/ssubSUBSCREEN_BODY:SAPMV45A:4414/ssubHEADER_FRAME:SAPMV45A:4440/cmbVBAK-FAKSK").key = "70"
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\01/ssubSUBSCREEN_BODY:SAPMV45A:4414/ssubHEADER_FRAME:SAPMV45A:4440/cmbVBAK-AUGRU").key = "PRC"
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\01/ssubSUBSCREEN_BODY:SAPMV45A:4414/ssubHEADER_FRAME:SAPMV45A:4440/cmbVBAK-AUGRU").setFocus
+session.findById("wnd[0]").sendVKey 0
+session.findById("wnd[0]").sendVKey 0
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\01/ssubSUBSCREEN_BODY:SAPMV45A:4414/subSUBSCREEN_TC:SAPMV45A:4902/tblSAPMV45ATCTRL_U_ERF_GUTLAST/txtVBAP-ZMENG[2,0]").text = "1"
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\01/ssubSUBSCREEN_BODY:SAPMV45A:4414/subSUBSCREEN_TC:SAPMV45A:4902/tblSAPMV45ATCTRL_U_ERF_GUTLAST/txtVBAP-ZMENG[2,0]").setFocus
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\01/ssubSUBSCREEN_BODY:SAPMV45A:4414/subSUBSCREEN_TC:SAPMV45A:4902/tblSAPMV45ATCTRL_U_ERF_GUTLAST/txtVBAP-ZMENG[2,0]").caretPosition = 17
+session.findById("wnd[0]").sendVKey 0
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\05").select
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\05/ssubSUBSCREEN_BODY:SAPMV45A:4405/subSUBSCREEN_TC:SAPMV45A:4920/tblSAPMV45ATCTRL_UEIN_BESCHAFFUNG/ctxtVBAP-WERKS[2,0]").text = "084"
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\05/ssubSUBSCREEN_BODY:SAPMV45A:4405/subSUBSCREEN_TC:SAPMV45A:4920/tblSAPMV45ATCTRL_UEIN_BESCHAFFUNG/ctxtVBAP-WERKS[2,0]").setFocus
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\05/ssubSUBSCREEN_BODY:SAPMV45A:4405/subSUBSCREEN_TC:SAPMV45A:4920/tblSAPMV45ATCTRL_UEIN_BESCHAFFUNG/ctxtVBAP-WERKS[2,0]").caretPosition = 3
+session.findById("wnd[0]").sendVKey 0
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\01").select
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\01/ssubSUBSCREEN_BODY:SAPMV45A:4414/subSUBSCREEN_TC:SAPMV45A:4902/tblSAPMV45ATCTRL_U_ERF_GUTLAST/ctxtVBAP-KDMAT[8,0]").text = "68264949AA"
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\01/ssubSUBSCREEN_BODY:SAPMV45A:4414/subSUBSCREEN_TC:SAPMV45A:4902/tblSAPMV45ATCTRL_U_ERF_GUTLAST/ctxtVBAP-KDMAT[8,0]").setFocus
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\01/ssubSUBSCREEN_BODY:SAPMV45A:4414/subSUBSCREEN_TC:SAPMV45A:4902/tblSAPMV45ATCTRL_U_ERF_GUTLAST/ctxtVBAP-KDMAT[8,0]").caretPosition = 0
+session.findById("wnd[0]").sendVKey 0
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\01/ssubSUBSCREEN_BODY:SAPMV45A:4414/subSUBSCREEN_TC:SAPMV45A:4902/tblSAPMV45ATCTRL_U_ERF_GUTLAST/ctxtRV45A-MABNR[1,0]").setFocus
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_OVERVIEW/tabpT\01/ssubSUBSCREEN_BODY:SAPMV45A:4414/subSUBSCREEN_TC:SAPMV45A:4902/tblSAPMV45ATCTRL_U_ERF_GUTLAST/ctxtRV45A-MABNR[1,0]").caretPosition = 8
+session.findById("wnd[0]").sendVKey 2
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_ITEM/tabpT\05").select
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_ITEM/tabpT\05/ssubSUBSCREEN_BODY:SAPLV69A:6201/tblSAPLV69ATCTRL_KONDITIONEN/ctxtKOMV-KSCHL[1,8]").text = "ZMAN"
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_ITEM/tabpT\05/ssubSUBSCREEN_BODY:SAPLV69A:6201/tblSAPLV69ATCTRL_KONDITIONEN/ctxtKOMV-KSCHL[1,8]").caretPosition = 4
+session.findById("wnd[0]").sendVKey 0
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_ITEM/tabpT\05/ssubSUBSCREEN_BODY:SAPLV69A:6201/tblSAPLV69ATCTRL_KONDITIONEN/txtKOMV-KBETR[3,1]").text = "546.00"
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_ITEM/tabpT\05/ssubSUBSCREEN_BODY:SAPLV69A:6201/tblSAPLV69ATCTRL_KONDITIONEN/txtKOMV-KBETR[3,1]").setFocus
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_ITEM/tabpT\05/ssubSUBSCREEN_BODY:SAPLV69A:6201/tblSAPLV69ATCTRL_KONDITIONEN/txtKOMV-KBETR[3,1]").caretPosition = 16
+session.findById("wnd[0]").sendVKey 0
+session.findById("wnd[0]").sendVKey 3
+session.findById("wnd[0]/usr/subSUBSCREEN_HEADER:SAPMV45A:4021/btnBT_HEAD").press
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpT\08").select
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpT\08/ssubSUBSCREEN_BODY:SAPMV45A:4152/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[1]/shell").text = "Material Pricing issue" + vbCr + "" + vbCr + ""
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpT\08/ssubSUBSCREEN_BODY:SAPMV45A:4152/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[1]/shell").setSelectionIndexes 23,23
+session.findById("wnd[0]").sendVKey 3
+session.findById("wnd[0]").sendVKey 11
+session.findById("wnd[0]/sbar").doubleClick
+session.findById("wnd[0]/shellcont").close
+session.findById("wnd[0]/tbar[0]/okcd").text = "/n"
+session.findById("wnd[0]").sendVKey 0
