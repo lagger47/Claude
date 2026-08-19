@@ -1,0 +1,446 @@
+Option Explicit
+
+'===================================================================
+'  PAY COMPARE
+'  ------------------------------------------------------------
+'  Run  ->  RunPayCompare
+'
+'  User picks the OLD month file, then the CURRENT month file.
+'  Employee ID sits in column F, amount in column J, headers on row 2.
+'
+'  Two columns are appended to the current month file:
+'     "Previous Pay"  - amount pulled from the old file by Employee ID
+'     "Difference"    - TRUE  = amounts match
+'                       FALSE = amounts do not match
+'                       "New" = Employee ID not present in the old file
+'
+'  New / not-found rows are highlighted, and so are the mismatches.
+'  Result is saved as a NEW file; both originals are left untouched.
+'===================================================================
+
+
+'============================ CONFIG ===============================
+
+Private Const HEADER_ROW    As Long = 2      ' headers on row 2, data from row 3
+
+Private Const ID_COL        As String = "F"  ' Employee ID, both files
+Private Const AMT_COL       As String = "J"  ' Amount, both files
+
+Private Const SHEET_NAME    As String = ""   ' blank = first sheet / ask
+
+Private Const HDR_PREV_PAY  As String = "Previous Pay"
+Private Const HDR_DIFF      As String = "Difference"
+
+Private Const NOT_FOUND_TEXT As String = "Not Found"
+Private Const NOT_FOUND_DIFF As String = "New"
+
+' Amounts are rounded to this many decimals before comparing
+Private Const DECIMALS      As Long = 2
+
+Private Const DO_TEXT_TO_COLUMNS As Boolean = True
+
+Private Const CLR_NEW       As Long = 12507391   ' pale orange - new / not found
+Private Const CLR_MISMATCH  As Long = 13551615   ' pale red    - amounts differ
+
+Private Const OUTPUT_SUFFIX As String = "_Compared"
+
+'===================================================================
+
+
+Public Sub RunPayCompare()
+
+    Dim sOldPath As String, sNewPath As String
+    Dim wbOld As Workbook, wbNew As Workbook
+    Dim wsOld As Worksheet, wsNew As Worksheet
+    Dim oldWasOpen As Boolean, newWasOpen As Boolean
+    Dim lastOld As Long, lastNew As Long
+    Dim lastCol As Long, cPrev As Long, cDiff As Long
+    Dim dict As Object
+    Dim vID As Variant, vAmt As Variant, vCurAmt As Variant
+    Dim outPay() As Variant, outDiff() As Variant
+    Dim i As Long, n As Long
+    Dim nMatch As Long, nMismatch As Long, nNew As Long, nDupe As Long, nBadAmt As Long
+    Dim sKey As String, sNum As String
+    Dim hit As Boolean, prevVal As Variant
+    Dim sOut As String
+
+    On Error GoTo CleanFail
+
+    '--- pick the two files -----------------------------------------
+    sOldPath = PickFile("Step 1 of 2  -  select the OLD month file")
+    If Len(sOldPath) = 0 Then Exit Sub
+
+    sNewPath = PickFile("Step 2 of 2  -  select the CURRENT month file")
+    If Len(sNewPath) = 0 Then Exit Sub
+
+    If StrComp(sOldPath, sNewPath, vbTextCompare) = 0 Then
+        MsgBox "Both selections point to the same file.", vbExclamation, "Pay Compare"
+        Exit Sub
+    End If
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    Application.Calculation = xlCalculationManual
+
+    Set wbOld = OpenBook(sOldPath, oldWasOpen, True)
+    Set wbNew = OpenBook(sNewPath, newWasOpen, False)
+    If wbOld Is Nothing Or wbNew Is Nothing Then
+        MsgBox "One of the files could not be opened.", vbCritical, "Pay Compare"
+        GoTo CleanExit
+    End If
+
+    Set wsOld = GetSheet(wbOld, "OLD month")
+    Set wsNew = GetSheet(wbNew, "CURRENT month")
+    If wsOld Is Nothing Or wsNew Is Nothing Then GoTo CleanExit
+
+    lastOld = wsOld.Cells(wsOld.Rows.Count, ID_COL).End(xlUp).Row
+    lastNew = wsNew.Cells(wsNew.Rows.Count, ID_COL).End(xlUp).Row
+    If lastOld <= HEADER_ROW Or lastNew <= HEADER_ROW Then
+        MsgBox "No data found under column " & ID_COL & " in one of the files." & vbCrLf & _
+               "Check that the headers really are on row " & HEADER_ROW & ".", _
+               vbExclamation, "Pay Compare"
+        GoTo CleanExit
+    End If
+
+    '--- clean the ID columns ---------------------------------------
+    If DO_TEXT_TO_COLUMNS Then
+        SplitCol wsOld, ID_COL, HEADER_ROW + 1, lastOld
+        SplitCol wsNew, ID_COL, HEADER_ROW + 1, lastNew
+    End If
+
+    '--- build lookup from the old file -----------------------------
+    Set dict = CreateObject("Scripting.Dictionary")
+    dict.CompareMode = 1
+
+    vID = ReadCol(wsOld, ID_COL, HEADER_ROW + 1, lastOld)
+    vAmt = ReadCol(wsOld, AMT_COL, HEADER_ROW + 1, lastOld)
+
+    For i = 1 To UBound(vID, 1)
+        sKey = IDKey(vID(i, 1))
+        If Len(sKey) > 0 Then
+            If dict.Exists(sKey) Then
+                nDupe = nDupe + 1
+            Else
+                dict.Add sKey, vAmt(i, 1)
+            End If
+        End If
+    Next i
+
+    '--- compare against the current file ---------------------------
+    n = lastNew - HEADER_ROW
+    vID = ReadCol(wsNew, ID_COL, HEADER_ROW + 1, lastNew)
+    vCurAmt = ReadCol(wsNew, AMT_COL, HEADER_ROW + 1, lastNew)
+
+    ReDim outPay(1 To n, 1 To 1)
+    ReDim outDiff(1 To n, 1 To 1)
+
+    For i = 1 To n
+        sKey = IDKey(vID(i, 1))
+        hit = False
+        prevVal = Empty
+
+        If Len(sKey) > 0 Then
+            If dict.Exists(sKey) Then
+                prevVal = dict(sKey)
+                hit = True
+            End If
+        End If
+
+        If Not hit Then
+            nNew = nNew + 1
+            outPay(i, 1) = NOT_FOUND_TEXT
+            outDiff(i, 1) = NOT_FOUND_DIFF
+        Else
+            outPay(i, 1) = prevVal
+            outDiff(i, 1) = AmountsMatch(prevVal, vCurAmt(i, 1), sNum)
+            If sNum = "TEXT" Then nBadAmt = nBadAmt + 1
+            If outDiff(i, 1) = True Then
+                nMatch = nMatch + 1
+            Else
+                nMismatch = nMismatch + 1
+            End If
+        End If
+    Next i
+
+    '--- write the results ------------------------------------------
+    lastCol = wsNew.Cells(HEADER_ROW, wsNew.Columns.Count).End(xlToLeft).Column
+    cPrev = lastCol + 1
+    cDiff = lastCol + 2
+
+    wsNew.Cells(HEADER_ROW, cPrev).Value = HDR_PREV_PAY
+    wsNew.Cells(HEADER_ROW, cDiff).Value = HDR_DIFF
+    With wsNew.Range(wsNew.Cells(HEADER_ROW, cPrev), wsNew.Cells(HEADER_ROW, cDiff))
+        .Font.Bold = True
+        .HorizontalAlignment = xlCenter
+    End With
+
+    wsNew.Cells(HEADER_ROW + 1, cPrev).Resize(n, 1).Value = outPay
+    wsNew.Cells(HEADER_ROW + 1, cDiff).Resize(n, 1).Value = outDiff
+
+    ' copy the amount column's number format onto Previous Pay
+    wsNew.Cells(HEADER_ROW + 1, cPrev).Resize(n, 1).NumberFormat = _
+        wsNew.Range(AMT_COL & HEADER_ROW + 1).NumberFormat
+
+    '--- highlight ---------------------------------------------------
+    For i = 1 To n
+        If VarType(outDiff(i, 1)) = vbBoolean Then
+            If outDiff(i, 1) = False Then
+                wsNew.Range(wsNew.Cells(HEADER_ROW + i, cPrev), _
+                            wsNew.Cells(HEADER_ROW + i, cDiff)).Interior.Color = CLR_MISMATCH
+            End If
+        Else
+            wsNew.Range(wsNew.Cells(HEADER_ROW + i, cPrev), _
+                        wsNew.Cells(HEADER_ROW + i, cDiff)).Interior.Color = CLR_NEW
+        End If
+    Next i
+
+    wsNew.Columns(cPrev).AutoFit
+    wsNew.Columns(cDiff).AutoFit
+
+    '--- save as a new file -----------------------------------------
+    sOut = OutPath(sNewPath)
+    wbNew.SaveAs Filename:=sOut, FileFormat:=wbNew.FileFormat
+
+    MsgBox "Pay Compare complete." & vbCrLf & vbCrLf & _
+           "Rows in current file : " & n & vbCrLf & _
+           "Amounts match (TRUE) : " & nMatch & vbCrLf & _
+           "Amounts differ (FALSE): " & nMismatch & vbCrLf & _
+           "New / not found      : " & nNew & vbCrLf & _
+           IIf(nDupe > 0, "Duplicate IDs skipped in old file: " & nDupe & vbCrLf, "") & _
+           IIf(nBadAmt > 0, "Amounts not readable as numbers: " & nBadAmt & vbCrLf, "") & _
+           vbCrLf & "Saved as:" & vbCrLf & sOut, _
+           vbInformation, "Pay Compare"
+
+CleanExit:
+    If Not wbOld Is Nothing Then
+        If Not oldWasOpen Then wbOld.Close SaveChanges:=False
+    End If
+    Application.Calculation = xlCalculationAutomatic
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+    Exit Sub
+
+CleanFail:
+    MsgBox "Error " & Err.Number & ": " & Err.Description, vbCritical, "Pay Compare stopped"
+    Resume CleanExit
+
+End Sub
+
+
+'=================== comparison =====================================
+
+' TRUE when the two amounts are equal at DECIMALS places.
+' sKind is returned as "NUM" or "TEXT" so the caller can count
+' rows where an amount could not be read as a number at all.
+Private Function AmountsMatch(ByVal a As Variant, ByVal b As Variant, _
+                              ByRef sKind As String) As Boolean
+    Dim dA As Double, dB As Double
+    Dim okA As Boolean, okB As Boolean
+
+    dA = ToNumber(a, okA)
+    dB = ToNumber(b, okB)
+
+    If okA And okB Then
+        sKind = "NUM"
+        AmountsMatch = (Round(dA, DECIMALS) = Round(dB, DECIMALS))
+    Else
+        sKind = "TEXT"
+        AmountsMatch = (StrComp(Trim$(CStr(a)), Trim$(CStr(b)), vbTextCompare) = 0)
+    End If
+End Function
+
+
+' Pulls a real number out of a cell value, coping with currency
+' symbols, thousands separators, stray spaces, trailing minus
+' signs and bracketed negatives.
+Private Function ToNumber(ByVal v As Variant, ByRef ok As Boolean) As Double
+    Dim s As String
+    Dim neg As Boolean
+    Dim i As Long, ch As String, clean As String
+
+    ok = False
+    ToNumber = 0
+
+    If IsError(v) Then Exit Function
+    If IsEmpty(v) Then Exit Function
+
+    Select Case VarType(v)
+        Case vbDouble, vbSingle, vbInteger, vbLong, vbCurrency, vbDecimal
+            ok = True
+            ToNumber = CDbl(v)
+            Exit Function
+    End Select
+
+    s = Trim$(Replace(CStr(v), Chr$(160), " "))
+    If Len(s) = 0 Then Exit Function
+
+    If Left$(s, 1) = "(" And Right$(s, 1) = ")" Then
+        neg = True
+        s = Mid$(s, 2, Len(s) - 2)
+    End If
+    If Right$(s, 1) = "-" Then
+        neg = True
+        s = Left$(s, Len(s) - 1)
+    End If
+
+    For i = 1 To Len(s)
+        ch = Mid$(s, i, 1)
+        Select Case ch
+            Case "0" To "9", "."
+                clean = clean & ch
+            Case "-"
+                If Len(clean) = 0 Then neg = True
+            Case ",", " ", "$", Chr$(163), Chr$(8377)
+                ' skip separators and currency symbols
+            Case Else
+                ' anything else means this is not a plain amount
+                If Not (UCase$(ch) = "R" Or UCase$(ch) = "S") Then Exit Function
+        End Select
+    Next i
+
+    If Len(clean) = 0 Then Exit Function
+    If Not IsNumeric(clean) Then Exit Function
+
+    ok = True
+    ToNumber = CDbl(clean)
+    If neg Then ToNumber = -ToNumber
+End Function
+
+
+'=================== keys ===========================================
+
+' One canonical key per Employee ID. Numbers and numeric text
+' collapse to the same key, so 123, "123" and "00123" all match.
+Private Function IDKey(ByVal v As Variant) As String
+    Dim s As String
+
+    If IsError(v) Then Exit Function
+    If IsEmpty(v) Then Exit Function
+
+    s = Trim$(Replace(Replace(CStr(v), Chr$(160), " "), " ", ""))
+    If Len(s) = 0 Then Exit Function
+
+    If IsNumeric(s) Then
+        IDKey = CStr(CDbl(s))
+    Else
+        IDKey = UCase$(s)
+    End If
+End Function
+
+
+'=================== plumbing =======================================
+
+Private Function PickFile(ByVal sTitle As String) As String
+    Dim v As Variant
+    v = Application.GetOpenFilename("Excel Files (*.xls*),*.xls*", , sTitle)
+    If VarType(v) = vbBoolean Then PickFile = "" Else PickFile = CStr(v)
+End Function
+
+
+Private Function OpenBook(ByVal sPath As String, ByRef wasOpen As Boolean, _
+                          ByVal bReadOnly As Boolean) As Workbook
+    Dim wb As Workbook, sName As String
+
+    sName = Mid$(sPath, InStrRev(sPath, "\") + 1)
+    On Error Resume Next
+    Set wb = Workbooks(sName)
+    On Error GoTo 0
+
+    If Not wb Is Nothing Then
+        wasOpen = True
+    Else
+        wasOpen = False
+        On Error Resume Next
+        Set wb = Workbooks.Open(Filename:=sPath, ReadOnly:=bReadOnly, UpdateLinks:=0)
+        On Error GoTo 0
+    End If
+
+    Set OpenBook = wb
+End Function
+
+
+Private Function GetSheet(ByVal wb As Workbook, ByVal sWhich As String) As Worksheet
+    Dim ws As Worksheet, sList As String, sAns As String, cnt As Long
+    Dim wsFirst As Worksheet
+
+    If Len(Trim$(SHEET_NAME)) > 0 Then
+        On Error Resume Next
+        Set GetSheet = wb.Worksheets(SHEET_NAME)
+        On Error GoTo 0
+        If GetSheet Is Nothing Then
+            MsgBox "Sheet '" & SHEET_NAME & "' not found in " & wb.Name, _
+                   vbExclamation, "Pay Compare"
+        End If
+        Exit Function
+    End If
+
+    For Each ws In wb.Worksheets
+        If ws.Visible = xlSheetVisible Then
+            cnt = cnt + 1
+            If wsFirst Is Nothing Then Set wsFirst = ws
+            sList = sList & vbCrLf & "   " & ws.Name
+        End If
+    Next ws
+
+    If cnt = 1 Then Set GetSheet = wsFirst: Exit Function
+
+    sAns = InputBox("Which sheet holds the " & sWhich & " data?" & vbCrLf & _
+                    "(" & wb.Name & ")" & vbCrLf & sList, "Select sheet", wsFirst.Name)
+    If Len(Trim$(sAns)) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set GetSheet = wb.Worksheets(sAns)
+    On Error GoTo 0
+    If GetSheet Is Nothing Then
+        MsgBox "Sheet '" & sAns & "' not found.", vbExclamation, "Pay Compare"
+    End If
+End Function
+
+
+Private Function ReadCol(ByVal ws As Worksheet, ByVal col As String, _
+                         ByVal r1 As Long, ByVal r2 As Long) As Variant
+    Dim a() As Variant
+
+    If r2 > r1 Then
+        ReadCol = ws.Range(col & r1 & ":" & col & r2).Value2
+    Else
+        ReDim a(1 To 1, 1 To 1)
+        a(1, 1) = ws.Range(col & r1).Value2
+        ReadCol = a
+    End If
+End Function
+
+
+Private Sub SplitCol(ByVal ws As Worksheet, ByVal col As String, _
+                     ByVal r1 As Long, ByVal r2 As Long)
+    If r2 < r1 Then Exit Sub
+    On Error Resume Next
+    ws.Range(col & r1 & ":" & col & r2).TextToColumns _
+        Destination:=ws.Range(col & r1), _
+        DataType:=xlDelimited, _
+        TextQualifier:=xlDoubleQuote, _
+        ConsecutiveDelimiter:=False, _
+        Tab:=False, Semicolon:=False, Comma:=False, Space:=False, Other:=False, _
+        FieldInfo:=Array(1, 1), _
+        TrailingMinusNumbers:=True
+    On Error GoTo 0
+End Sub
+
+
+Private Function OutPath(ByVal sSrc As String) As String
+    Dim sFolder As String, sName As String, sExt As String, p As Long
+
+    sFolder = Left$(sSrc, InStrRev(sSrc, "\"))
+    sName = Mid$(sSrc, InStrRev(sSrc, "\") + 1)
+
+    p = InStrRev(sName, ".")
+    If p > 0 Then
+        sExt = Mid$(sName, p)
+        sName = Left$(sName, p - 1)
+    End If
+
+    OutPath = sFolder & sName & OUTPUT_SUFFIX & "_" & _
+              Format$(Now, "yyyymmdd_hhnnss") & sExt
+End Function
+
+
