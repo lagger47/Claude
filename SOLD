@@ -1,0 +1,35 @@
+Sold file steps	
+1	By using the Funding File create a copy of it using “Save As” naming it as “MUFG SOLD FILE MM 
+2	Open the last week’s SOLD FILE for reference, to create the formatting of this week’s file) Insert four rows from above
+3	 Copy the headers from the previous SOLD FILE and paste the same in the current SOLD FILE from Column A to Column AT
+4	Copy the cells containing formulas from the previous SOLD FILE under the Orange section and paste in the corresponding section in the current SOLD FILE and drag the same till the bottom of the data
+5	Copy cell from AV6:AV11 (containing formulas) from the previous SOLD FILE and paste the same in the current SOLD FILE
+6	Under Column X (invoice id column) in the current SOLD FILE, convert the document numbers to text and copy them
+7	In SAP use FBL5N
+8	Clear the customer account field and the company code should be 1091 and click on Dynamic Selections 
+9	Click on the multiple selections option against the Document Number Field 
+10	Paste the document numbers using the Clipboard option and select “All Items”
+11	Layout as MUFG SLD JE
+12	In the current SOLD FILE apply filters by selecting the headers and sort the invoice id column from smallest to largest
+13	Copy the data from the exported file excluding the headers and total row from Column A to N
+14	Paste the same in the current SOLD File under cell AA6
+15	Now we have the award file paired up with data we had extracted from SAP, we need to check whether  there is a difference appearing in column AT under DOC CHECK column
+16	Convert the wrong formatting of the columns AJ & AK corresponding to the Net Due Date and  Document date columns respectively and change the same to date format
+17	Convert the columns having errors to text
+18	Sort the data to oldest to newest by referring the Repayment date column 
+19	We need to review the Ref Key 1 column and adjust the characters as we only need 4 digits of the repayment date comprising MMDD referring the repayment date column (make changes in the formulas to display in the correct format) 
+20	Add a sheet within the workbook and name it as ”LSMW”
+21	Copy the headers from last week’s SOLD file’s LSMW sheet and paste the same on the current LSMW sheet for using those as reference
+22	Copy the data from DATA tab of the SOLD file under column AE through AI and paste the same under LSMW sheet headers till the AR Pledg.
+23	Copy the data from DATA tab of the SOLD file under column AO referring to Ref Key 1 column and paste (as values) same in LSMW sheet’s Ref Key 1 column
+24	Go back to the DATA tab and select the entire data including the headers till the DOC Check Column (excluding the four rows from the top) and insert a pivot table
+25	Using the PivotTable Fields, drag Repayment Date under Rows and remove the Months
+26	Ungroup the dates which appeared
+27	Under the Values Field drag -  
+	·         Amount in doc. Curr. (1019000)
+	·         RESERVE 1050302
+	·         REPAYMENT AMOUNT 1005243
+	·         DISCOUNT
+	·         FUNDED AMOUNT
+	·         Do a comma “,” formatting for the values in the Pivot Table
+	Rename the Sheet as SUMMARY
