@@ -1,0 +1,1085 @@
+Option Explicit
+
+Public Const TAT_HOURS As Double = 48
+
+Public Sub GenerateDashboard(startDate As Date, endDate As Date, targetMailbox As String)
+    Dim emails As Collection
+    Dim sentConversations As Object
+    Dim movedEmails As Object
+    Dim chainEmails As Object
+    Dim dictStats As Object
+    Dim wsDashboard As Worksheet
+    Dim wsDetails As Worksheet
+    Dim wsCharts As Worksheet
+    Dim wsMoved As Worksheet
+    Dim wsChains As Worksheet
+    Dim i As Long
+    Dim rec As Object
+    
+    Application.StatusBar = "Scanning " & targetMailbox & " folders..."
+    
+    Set emails = modOutlookConnector.FetchEmails(startDate, endDate, targetMailbox, _
+                                                  sentConversations, movedEmails, chainEmails)
+    
+    If emails.Count = 0 Then
+        MsgBox "No emails found in " & targetMailbox & " for the selected date range.", vbInformation
+        Application.StatusBar = False
+        Exit Sub
+    End If
+    
+    Set dictStats = CreateObject("Scripting.Dictionary")
+    dictStats("TotalInflow") = emails.Count
+    dictStats("TotalOutflow") = sentConversations.Count
+    dictStats("Replied") = 0
+    dictStats("Unreplied") = 0
+    dictStats("MovedEmails") = 0
+    dictStats("ForwardedEmails") = 0
+    dictStats("ChainEmails") = 0
+    dictStats("Within1Hour") = 0
+    dictStats("Within4Hours") = 0
+    dictStats("Within24Hours") = 0
+    dictStats("Within48Hours") = 0
+    dictStats("Over48Hours") = 0
+    dictStats("NeverReplied") = 0
+    dictStats("TotalReplyMinutes") = 0
+    dictStats("TotalBusinessMinutes") = 0
+    
+    For i = 1 To emails.Count
+        Set rec = emails(i)
+        
+        If rec("WasMoved") = True Then
+            dictStats("MovedEmails") = dictStats("MovedEmails") + 1
+        End If
+        
+        If rec("WasForwarded") = True Then
+            dictStats("ForwardedEmails") = dictStats("ForwardedEmails") + 1
+        End If
+        
+        If rec("ChainLength") > 1 Then
+            dictStats("ChainEmails") = dictStats("ChainEmails") + 1
+        End If
+        
+        If rec("IsReply") = True Then
+            dictStats("Replied") = dictStats("Replied") + 1
+            dictStats("TotalReplyMinutes") = dictStats("TotalReplyMinutes") + rec("ReplyTimeMinutes")
+            dictStats("TotalBusinessMinutes") = dictStats("TotalBusinessMinutes") + rec("BusinessMinutes")
+            
+            Select Case rec("SLABucket")
+                Case "Within 1 Hour": dictStats("Within1Hour") = dictStats("Within1Hour") + 1
+                Case "Within 4 Hours": dictStats("Within4Hours") = dictStats("Within4Hours") + 1
+                Case "Within 24 Hours": dictStats("Within24Hours") = dictStats("Within24Hours") + 1
+                Case "Within 48 Hours (TAT)": dictStats("Within48Hours") = dictStats("Within48Hours") + 1
+                Case "Over 48 Hours (TAT Breach)": dictStats("Over48Hours") = dictStats("Over48Hours") + 1
+            End Select
+        Else
+            dictStats("Unreplied") = dictStats("Unreplied") + 1
+            dictStats("NeverReplied") = dictStats("NeverReplied") + 1
+        End If
+    Next i
+    
+    If dictStats("Replied") > 0 Then
+        dictStats("AvgReplyMinutes") = Round(dictStats("TotalReplyMinutes") / dictStats("Replied"), 2)
+        dictStats("AvgReplyHours") = Round(dictStats("AvgReplyMinutes") / 60, 2)
+        dictStats("AvgBusinessMinutes") = Round(dictStats("TotalBusinessMinutes") / dictStats("Replied"), 2)
+        dictStats("AvgBusinessHours") = Round(dictStats("AvgBusinessMinutes") / 60, 2)
+    Else
+        dictStats("AvgReplyMinutes") = 0
+        dictStats("AvgReplyHours") = 0
+        dictStats("AvgBusinessMinutes") = 0
+        dictStats("AvgBusinessHours") = 0
+    End If
+    
+    Application.StatusBar = "Building dashboard..."
+    
+    Application.DisplayAlerts = False
+    On Error Resume Next
+    ThisWorkbook.Worksheets("Dashboard").Delete
+    ThisWorkbook.Worksheets("Email Details").Delete
+    ThisWorkbook.Worksheets("SLA Charts").Delete
+    ThisWorkbook.Worksheets("Moved Emails").Delete
+    ThisWorkbook.Worksheets("Chain Emails").Delete
+    On Error GoTo 0
+    Application.DisplayAlerts = True
+    
+    Set wsDashboard = ThisWorkbook.Worksheets.Add(Before:=ThisWorkbook.Worksheets(1))
+    wsDashboard.Name = "Dashboard"
+    BuildDashboardSheet wsDashboard, dictStats, startDate, endDate, targetMailbox
+    
+    Set wsDetails = ThisWorkbook.Worksheets.Add(After:=wsDashboard)
+    wsDetails.Name = "Email Details"
+    BuildDetailsSheet wsDetails, emails
+    
+    Set wsCharts = ThisWorkbook.Worksheets.Add(After:=wsDetails)
+    wsCharts.Name = "SLA Charts"
+    BuildChartsSheet wsCharts, wsDashboard, dictStats
+    
+    ' Always create Moved Emails sheet if any moved
+    If dictStats("MovedEmails") > 0 Or movedEmails.Count > 0 Then
+        Set wsMoved = ThisWorkbook.Worksheets.Add(After:=wsCharts)
+        wsMoved.Name = "Moved Emails"
+        BuildMovedSheet wsMoved, movedEmails, emails
+    End If
+    
+    If chainEmails.Count > 0 Then
+        Set wsChains = ThisWorkbook.Worksheets.Add(After:=wsCharts)
+        wsChains.Name = "Chain Emails"
+        BuildChainSheet wsChains, chainEmails
+    End If
+    
+    wsDashboard.Activate
+    wsDashboard.Range("A1").Select
+    
+    Application.StatusBar = "Saving..."
+    ThisWorkbook.Save
+    
+    Application.StatusBar = False
+    MsgBox "Dashboard Complete for " & targetMailbox & "!" & vbCrLf & vbCrLf & _
+           "Inflow: " & dictStats("TotalInflow") & vbCrLf & _
+           "Outflow: " & dictStats("TotalOutflow") & vbCrLf & _
+           "Replied: " & dictStats("Replied") & vbCrLf & _
+           "Unreplied: " & dictStats("Unreplied") & vbCrLf & _
+           "Moved: " & dictStats("MovedEmails") & vbCrLf & _
+           "Forwarded: " & dictStats("ForwardedEmails") & vbCrLf & _
+           "Chain Emails: " & dictStats("ChainEmails") & vbCrLf & _
+           "Avg Reply (24/7 excl. weekends): " & dictStats("AvgBusinessHours") & " hrs", vbInformation
+End Sub
+
+Private Sub BuildDashboardSheet(ws As Worksheet, stats As Object, startDate As Date, endDate As Date, mailbox As String)
+    Dim i As Long
+    
+    With ws.Range("A1")
+        .Value = "GROUP MAILBOX EMAIL DASHBOARD"
+        .Font.Size = 18
+        .Font.Bold = True
+        .Font.Name = "Segoe UI"
+        .Font.Color = RGB(0, 51, 102)
+    End With
+    
+    ws.Range("A3").Value = "Generated:"
+    ws.Range("B3").Value = Now
+    ws.Range("B3").NumberFormat = "dd-mmm-yyyy hh:mm:ss"
+    ws.Range("A4").Value = "Mailbox:"
+    ws.Range("B4").Value = mailbox
+    ws.Range("A5").Value = "Period:"
+    ws.Range("B5").Value = Format(startDate, "dd-mmm-yyyy") & " to " & Format(endDate, "dd-mmm-yyyy")
+    ws.Range("A6").Value = "TAT Target:"
+    ws.Range("B6").Value = "48 Hours (24/7, Mon-Fri, Weekends Excluded)"
+    ws.Range("B6").Font.Color = RGB(68, 114, 196)
+    ws.Range("B6").Font.Bold = True
+    
+    ws.Range("A8").Value = "KEY METRICS"
+    With ws.Range("A8")
+        .Font.Size = 14
+        .Font.Bold = True
+        .Font.Color = RGB(68, 114, 196)
+    End With
+    
+    ws.Range("A10").Value = "Metric"
+    ws.Range("B10").Value = "Count"
+    ws.Range("C10").Value = "Percentage"
+    ws.Range("D10").Value = "Status"
+    
+    With ws.Range("A10:D10")
+        .Font.Bold = True
+        .Interior.Color = RGB(68, 114, 196)
+        .Font.Color = RGB(255, 255, 255)
+    End With
+    
+    Dim replyRate As Double
+    If stats("TotalInflow") > 0 Then
+        replyRate = stats("Replied") / stats("TotalInflow")
+    Else
+        replyRate = 0
+    End If
+    
+    Dim kpiData As Variant
+    kpiData = Array( _
+        Array("Total Inflow (Received)", stats("TotalInflow"), "100%", "Incoming"), _
+        Array("Total Outflow (Sent)", stats("TotalOutflow"), IIf(stats("TotalInflow") > 0, Round(stats("TotalOutflow") / stats("TotalInflow") * 100, 1) & "%", "N/A"), "Outgoing"), _
+        Array("Replied Emails", stats("Replied"), Format(replyRate, "0.0%"), "Completed"), _
+        Array("Unreplied Emails", stats("Unreplied"), Format(1 - replyRate, "0.0%"), "Pending"), _
+        Array("Moved to Other Folders", stats("MovedEmails"), IIf(stats("TotalInflow") > 0, Round(stats("MovedEmails") / stats("TotalInflow") * 100, 1) & "%", "0%"), "Moved"), _
+        Array("Forwarded (Not Replied)", stats("ForwardedEmails"), IIf(stats("TotalInflow") > 0, Round(stats("ForwardedEmails") / stats("TotalInflow") * 100, 1) & "%", "0%"), "Forwarded"), _
+        Array("Chain Emails (Back-Forth)", stats("ChainEmails"), IIf(stats("TotalInflow") > 0, Round(stats("ChainEmails") / stats("TotalInflow") * 100, 1) & "%", "0%"), "Chain"), _
+        Array("Reply Rate", "", Format(replyRate, "0.0%"), "Performance") _
+    )
+    
+    For i = 0 To UBound(kpiData)
+        ws.Range("A" & 11 + i).Value = kpiData(i)(0)
+        ws.Range("B" & 11 + i).Value = kpiData(i)(1)
+        ws.Range("C" & 11 + i).Value = kpiData(i)(2)
+        ws.Range("D" & 11 + i).Value = kpiData(i)(3)
+    Next i
+    
+    ws.Range("B13").Interior.Color = RGB(198, 239, 206)
+    ws.Range("C13").Interior.Color = RGB(198, 239, 206)
+    ws.Range("B14").Interior.Color = RGB(255, 199, 206)
+    ws.Range("C14").Interior.Color = RGB(255, 199, 206)
+    ws.Range("B15").Interior.Color = RGB(255, 235, 156)
+    ws.Range("C15").Interior.Color = RGB(255, 235, 156)
+    ws.Range("B16").Interior.Color = RGB(226, 239, 218)
+    ws.Range("C16").Interior.Color = RGB(226, 239, 218)
+    ws.Range("B17").Interior.Color = RGB(218, 232, 252)
+    ws.Range("C17").Interior.Color = RGB(218, 232, 252)
+    
+    With ws.Range("B18")
+        .Value = replyRate
+        .NumberFormat = "0.0%"
+        .Font.Size = 14
+        .Font.Bold = True
+        If replyRate >= 0.9 Then
+            .Interior.Color = RGB(112, 173, 71)
+            .Font.Color = RGB(255, 255, 255)
+        ElseIf replyRate >= 0.7 Then
+            .Interior.Color = RGB(255, 192, 0)
+        Else
+            .Interior.Color = RGB(192, 80, 77)
+            .Font.Color = RGB(255, 255, 255)
+        End If
+    End With
+    
+    ws.Range("A20").Value = "TAT ANALYSIS - 48 HOUR TARGET (24/7, Mon-Fri)"
+    With ws.Range("A20")
+        .Font.Size = 14
+        .Font.Bold = True
+        .Font.Color = RGB(68, 114, 196)
+    End With
+    
+    ws.Range("A22").Value = "SLA Bucket"
+    ws.Range("B22").Value = "Count"
+    ws.Range("C22").Value = "% of Replied"
+    ws.Range("D22").Value = "Status"
+    
+    With ws.Range("A22:D22")
+        .Font.Bold = True
+        .Interior.Color = RGB(112, 173, 71)
+        .Font.Color = RGB(255, 255, 255)
+    End With
+    
+    Dim repliedCount As Long
+    repliedCount = stats("Replied")
+    
+    Dim pct1Hour As String
+    Dim pct4Hours As String
+    Dim pct24Hours As String
+    Dim pct48Hours As String
+    Dim pctOver48 As String
+    Dim pctNever As String
+    
+    If repliedCount > 0 Then
+        pct1Hour = Round((stats("Within1Hour") / repliedCount) * 100, 1) & "%"
+        pct4Hours = Round((stats("Within4Hours") / repliedCount) * 100, 1) & "%"
+        pct24Hours = Round((stats("Within24Hours") / repliedCount) * 100, 1) & "%"
+        pct48Hours = Round((stats("Within48Hours") / repliedCount) * 100, 1) & "%"
+        pctOver48 = Round((stats("Over48Hours") / repliedCount) * 100, 1) & "%"
+    Else
+        pct1Hour = "0%"
+        pct4Hours = "0%"
+        pct24Hours = "0%"
+        pct48Hours = "0%"
+        pctOver48 = "0%"
+    End If
+    
+    If stats("TotalInflow") > 0 Then
+        pctNever = Round((stats("NeverReplied") / stats("TotalInflow")) * 100, 1) & "%"
+    Else
+        pctNever = "0%"
+    End If
+    
+    Dim slaData As Variant
+    slaData = Array( _
+        Array("Within 1 Hour", stats("Within1Hour"), pct1Hour, "Excellent"), _
+        Array("Within 4 Hours", stats("Within4Hours"), pct4Hours, "Good"), _
+        Array("Within 24 Hours", stats("Within24Hours"), pct24Hours, "Fair"), _
+        Array("Within 48 Hours (TAT)", stats("Within48Hours"), pct48Hours, "On Target"), _
+        Array("Over 48 Hours (Breach)", stats("Over48Hours"), pctOver48, "TAT Breach"), _
+        Array("Never Replied", stats("NeverReplied"), pctNever, "Critical"), _
+        Array("Avg 24/7 Hours (excl. weekends)", "", stats("AvgBusinessHours") & " hrs", "Metric") _
+    )
+    
+    For i = 0 To UBound(slaData)
+        ws.Range("A" & 23 + i).Value = slaData(i)(0)
+        ws.Range("B" & 23 + i).Value = slaData(i)(1)
+        ws.Range("C" & 23 + i).Value = slaData(i)(2)
+        ws.Range("D" & 23 + i).Value = slaData(i)(3)
+        
+        Select Case i
+            Case 0: ws.Range("A" & 23 + i & ":D" & 23 + i).Interior.Color = RGB(198, 239, 206)
+            Case 1: ws.Range("A" & 23 + i & ":D" & 23 + i).Interior.Color = RGB(226, 239, 218)
+            Case 2: ws.Range("A" & 23 + i & ":D" & 23 + i).Interior.Color = RGB(255, 235, 156)
+            Case 3: ws.Range("A" & 23 + i & ":D" & 23 + i).Interior.Color = RGB(255, 192, 0)
+            Case 4: ws.Range("A" & 23 + i & ":D" & 23 + i).Interior.Color = RGB(255, 199, 206)
+            Case 5: ws.Range("A" & 23 + i & ":D" & 23 + i).Interior.Color = RGB(192, 80, 77)
+                    ws.Range("A" & 23 + i & ":D" & 23 + i).Font.Color = RGB(255, 255, 255)
+        End Select
+    Next i
+    
+    ws.Range("A31").Value = "TAT COMPLIANCE"
+    With ws.Range("A31")
+        .Font.Size = 14
+        .Font.Bold = True
+        .Font.Color = RGB(68, 114, 196)
+    End With
+    
+    Dim tatCompliant As Long
+    Dim tatBreach As Long
+    tatCompliant = stats("Within1Hour") + stats("Within4Hours") + stats("Within24Hours") + stats("Within48Hours")
+    tatBreach = stats("Over48Hours") + stats("NeverReplied")
+    
+    Dim tatRate As Double
+    If stats("TotalInflow") > 0 Then
+        tatRate = tatCompliant / stats("TotalInflow")
+    Else
+        tatRate = 0
+    End If
+    
+    ws.Range("A33").Value = "TAT Compliant (<=48hrs)"
+    ws.Range("B33").Value = tatCompliant
+    ws.Range("C33").Value = Format(tatRate, "0.0%")
+    ws.Range("A33:C33").Interior.Color = RGB(198, 239, 206)
+    
+    ws.Range("A34").Value = "TAT Breach (>48hrs)"
+    ws.Range("B34").Value = tatBreach
+    ws.Range("C34").Value = Format(1 - tatRate, "0.0%")
+    ws.Range("A34:C34").Interior.Color = RGB(255, 199, 206)
+    
+    ws.Range("A35").Value = "TAT Achievement Rate"
+    ws.Range("B35").Value = Format(tatRate, "0.0%")
+    ws.Range("B35").Font.Size = 14
+    ws.Range("B35").Font.Bold = True
+    If tatRate >= 0.9 Then
+        ws.Range("B35").Interior.Color = RGB(112, 173, 71)
+        ws.Range("B35").Font.Color = RGB(255, 255, 255)
+    ElseIf tatRate >= 0.7 Then
+        ws.Range("B35").Interior.Color = RGB(255, 192, 0)
+    Else
+        ws.Range("B35").Interior.Color = RGB(192, 80, 77)
+        ws.Range("B35").Font.Color = RGB(255, 255, 255)
+    End If
+    
+    ws.Columns("A").ColumnWidth = 32
+    ws.Columns("B").ColumnWidth = 15
+    ws.Columns("C").ColumnWidth = 18
+    ws.Columns("D").ColumnWidth = 20
+    
+    ws.Range("A10:D18").Borders.LineStyle = xlContinuous
+    ws.Range("A22:D29").Borders.LineStyle = xlContinuous
+    ws.Range("A33:C35").Borders.LineStyle = xlContinuous
+End Sub
+
+Private Sub BuildDetailsSheet(ws As Worksheet, emails As Collection)
+    Dim i As Long
+    Dim rec As Object
+    
+    Dim headers As Variant
+    headers = Array("No.", "Sender Name", "Sender Email", "Subject", "Received Time", _
+                    "Current Folder", "Reply Status", "Reply Time", "24/7 Hours (excl. weekends)", _
+                    "Raw Hours", "SLA Bucket", "TAT Status", "Chain Length", "Forwarded?", "Conversation ID")
+    
+    For i = 0 To UBound(headers)
+        ws.Cells(1, i + 1).Value = headers(i)
+        ws.Cells(1, i + 1).Font.Bold = True
+        ws.Cells(1, i + 1).Interior.Color = RGB(68, 114, 196)
+        ws.Cells(1, i + 1).Font.Color = RGB(255, 255, 255)
+    Next i
+    
+    For i = 1 To emails.Count
+        Set rec = emails(i)
+        ws.Cells(i + 1, 1).Value = i
+        ws.Cells(i + 1, 2).Value = rec("SenderName")
+        ws.Cells(i + 1, 3).Value = rec("SenderEmail")
+        ws.Cells(i + 1, 4).Value = rec("Subject")
+        ws.Cells(i + 1, 5).Value = rec("ReceivedTime")
+        ws.Cells(i + 1, 5).NumberFormat = "dd-mmm-yyyy hh:mm"
+        ws.Cells(i + 1, 6).Value = rec("CurrentFolder")
+        
+        ' Color code: Inbox = green, Other = yellow, Moved = orange
+        If LCase(rec("CurrentFolder")) = "inbox" Then
+            ws.Cells(i + 1, 6).Interior.Color = RGB(198, 239, 206)
+        ElseIf rec("WasMoved") = True Then
+            ws.Cells(i + 1, 6).Interior.Color = RGB(255, 192, 0)  ' Orange for moved
+        Else
+            ws.Cells(i + 1, 6).Interior.Color = RGB(255, 235, 156)
+        End If
+        
+        ws.Cells(i + 1, 7).Value = rec("ReplyStatus")
+        
+        If rec("IsReply") = True Then
+            ws.Cells(i + 1, 8).Value = rec("SentTime")
+            ws.Cells(i + 1, 8).NumberFormat = "dd-mmm-yyyy hh:mm"
+            ws.Cells(i + 1, 9).Value = rec("BusinessHours")
+            ws.Cells(i + 1, 10).Value = rec("ReplyTimeHours")
+            ws.Cells(i + 1, 12).Value = IIf(rec("BusinessHours") <= 48, "COMPLIANT", "BREACH")
+            ws.Cells(i + 1, 12).Interior.Color = IIf(rec("BusinessHours") <= 48, RGB(198, 239, 206), RGB(255, 199, 206))
+        Else
+            ws.Cells(i + 1, 8).Value = "N/A"
+            ws.Cells(i + 1, 9).Value = "N/A"
+            ws.Cells(i + 1, 10).Value = rec("ReplyTimeHours")
+            ws.Cells(i + 1, 12).Value = "PENDING"
+            ws.Cells(i + 1, 12).Interior.Color = RGB(255, 235, 156)
+        End If
+        
+        ws.Cells(i + 1, 11).Value = rec("SLABucket")
+        ws.Cells(i + 1, 13).Value = rec("ChainLength")
+        ws.Cells(i + 1, 14).Value = IIf(rec("WasForwarded") = True, "YES", "NO")
+        ws.Cells(i + 1, 15).Value = rec("ConversationID")
+        
+        If rec("IsReply") = True Then
+            ws.Cells(i + 1, 7).Interior.Color = RGB(198, 239, 206)
+        Else
+            ws.Cells(i + 1, 7).Interior.Color = RGB(255, 199, 206)
+        End If
+        
+        If rec("ChainLength") > 1 Then
+            ws.Cells(i + 1, 13).Interior.Color = RGB(218, 232, 252)
+        End If
+    Next i
+    
+    ws.Columns("A").ColumnWidth = 6
+    ws.Columns("B").ColumnWidth = 22
+    ws.Columns("C").ColumnWidth = 28
+    ws.Columns("D").ColumnWidth = 45
+    ws.Columns("E").ColumnWidth = 18
+    ws.Columns("F").ColumnWidth = 18
+    ws.Columns("G").ColumnWidth = 14
+    ws.Columns("H").ColumnWidth = 18
+    ws.Columns("I").ColumnWidth = 22
+    ws.Columns("J").ColumnWidth = 12
+    ws.Columns("K").ColumnWidth = 24
+    ws.Columns("L").ColumnWidth = 14
+    ws.Columns("M").ColumnWidth = 14
+    ws.Columns("N").ColumnWidth = 12
+    ws.Columns("O").ColumnWidth = 30
+    
+    If emails.Count > 0 Then
+        ws.Range("A1:O" & emails.Count + 1).AutoFilter
+    End If
+    
+    ws.Range("A2").Select
+    ActiveWindow.FreezePanes = True
+End Sub
+
+' FIXED: Build Moved Emails sheet from emails collection (not just duplicate tracker)
+Private Sub BuildMovedSheet(ws As Worksheet, movedEmails As Object, emails As Collection)
+    Dim i As Long
+    Dim rec As Object
+    Dim row As Long
+    
+    ws.Cells(1, 1).Value = "No."
+    ws.Cells(1, 2).Value = "Subject"
+    ws.Cells(1, 3).Value = "Current Folder"
+    ws.Cells(1, 4).Value = "Received Time"
+    ws.Cells(1, 5).Value = "Reply Status"
+    ws.Cells(1, 6).Value = "Note"
+    
+    For i = 0 To 5
+        ws.Cells(1, i + 1).Font.Bold = True
+        ws.Cells(1, i + 1).Interior.Color = RGB(68, 114, 196)
+        ws.Cells(1, i + 1).Font.Color = RGB(255, 255, 255)
+    Next i
+    
+    row = 2
+    For i = 1 To emails.Count
+        Set rec = emails(i)
+        If rec("WasMoved") = True Then
+            ws.Cells(row, 1).Value = row - 1
+            ws.Cells(row, 2).Value = rec("Subject")
+            ws.Cells(row, 3).Value = rec("CurrentFolder")
+            ws.Cells(row, 3).Interior.Color = RGB(255, 192, 0)
+            ws.Cells(row, 4).Value = rec("ReceivedTime")
+            ws.Cells(row, 4).NumberFormat = "dd-mmm-yyyy hh:mm"
+            ws.Cells(row, 5).Value = rec("ReplyStatus")
+            ws.Cells(row, 6).Value = "Email moved from Inbox"
+            row = row + 1
+        End If
+    Next i
+    
+    ws.Columns("A").ColumnWidth = 6
+    ws.Columns("B").ColumnWidth = 45
+    ws.Columns("C").ColumnWidth = 18
+    ws.Columns("D").ColumnWidth = 18
+    ws.Columns("E").ColumnWidth = 14
+    ws.Columns("F").ColumnWidth = 25
+    
+    If row > 2 Then
+        ws.Range("A1:F" & row - 1).AutoFilter
+    End If
+End Sub
+
+Private Sub BuildChainSheet(ws As Worksheet, chainEmails As Object)
+    Dim i As Long
+    Dim convID As Variant
+    
+    ws.Cells(1, 1).Value = "Conversation ID"
+    ws.Cells(1, 2).Value = "Email Count"
+    ws.Cells(1, 3).Value = "Type"
+    ws.Cells(1, 4).Value = "Status"
+    
+    For i = 0 To 3
+        ws.Cells(1, i + 1).Font.Bold = True
+        ws.Cells(1, i + 1).Interior.Color = RGB(68, 114, 196)
+        ws.Cells(1, i + 1).Font.Color = RGB(255, 255, 255)
+    Next i
+    
+    i = 2
+    For Each convID In chainEmails.Keys
+        If chainEmails(convID) > 1 Then
+            ws.Cells(i, 1).Value = convID
+            ws.Cells(i, 2).Value = chainEmails(convID)
+            ws.Cells(i, 3).Value = IIf(chainEmails(convID) > 2, "Long Chain", "Short Chain")
+            ws.Cells(i, 4).Value = "Multiple back-and-forth emails"
+            i = i + 1
+        End If
+    Next convID
+    
+    ws.Columns("A").ColumnWidth = 30
+    ws.Columns("B").ColumnWidth = 15
+    ws.Columns("C").ColumnWidth = 15
+    ws.Columns("D").ColumnWidth = 25
+    
+    If i > 2 Then
+        ws.Range("A1:D" & i - 1).AutoFilter
+    End If
+End Sub
+
+Private Sub BuildChartsSheet(ws As Worksheet, wsDashboard As Worksheet, stats As Object)
+    Dim chtObj As ChartObject
+    Dim cht As Chart
+    
+    Set chtObj = ws.ChartObjects.Add(10, 10, 380, 280)
+    Set cht = chtObj.Chart
+    cht.ChartType = xlPie
+    cht.SetSourceData Source:=wsDashboard.Range("A11:B17")
+    cht.HasTitle = True
+    cht.ChartTitle.Text = "Email Status Overview"
+    cht.ChartTitle.Font.Size = 12
+    cht.ChartTitle.Font.Bold = True
+    
+    Set chtObj = ws.ChartObjects.Add(410, 10, 400, 280)
+    Set cht = chtObj.Chart
+    cht.ChartType = xlColumnClustered
+    cht.SetSourceData Source:=wsDashboard.Range("A23:B28")
+    cht.HasTitle = True
+    cht.ChartTitle.Text = "SLA Response Distribution (48hr TAT)"
+    cht.ChartTitle.Font.Size = 12
+    cht.ChartTitle.Font.Bold = True
+    
+    Set chtObj = ws.ChartObjects.Add(10, 310, 380, 260)
+    Set cht = chtObj.Chart
+    cht.ChartType = xlDoughnut
+    cht.SetSourceData Source:=wsDashboard.Range("A33:B34")
+    cht.HasTitle = True
+    cht.ChartTitle.Text = "TAT Compliance: " & Format(wsDashboard.Range("B35").Value, "0.0%")
+    cht.ChartTitle.Font.Size = 14
+    cht.ChartTitle.Font.Bold = True
+    
+    Set chtObj = ws.ChartObjects.Add(410, 310, 400, 260)
+    Set cht = chtObj.Chart
+    cht.ChartType = xlBarClustered
+    cht.SetSourceData Source:=wsDashboard.Range("A35:B35")
+    cht.HasTitle = True
+    cht.ChartTitle.Text = "TAT Achievement Rate"
+    cht.ChartTitle.Font.Size = 14
+    cht.ChartTitle.Font.Bold = True
+End Sub
+
+
+
+
+
+Option Explicit
+
+'===========================================
+' TARGET MAILBOX EMAIL FETCHING
+' Fixed: Clean permission handling, true moved email detection
+'===========================================
+
+Public Function FetchEmails(startDate As Date, endDate As Date, targetMailbox As String, _
+                            ByRef outSentConversations As Object, _
+                            ByRef outMovedEmails As Object, _
+                            ByRef outChainEmails As Object) As Collection
+    
+    Dim olApp As Object
+    Dim olNS As Object
+    Dim targetRecipient As Object
+    Dim result As New Collection
+    
+    On Error Resume Next
+    Set olApp = GetObject(, "Outlook.Application")
+    If olApp Is Nothing Then
+        Set olApp = CreateObject("Outlook.Application")
+    End If
+    On Error GoTo 0
+    
+    If olApp Is Nothing Then
+        MsgBox "Could not connect to Outlook.", vbCritical
+        End
+    End If
+    
+    Set olNS = olApp.GetNamespace("MAPI")
+    
+    ' Resolve the TARGET mailbox
+    Set targetRecipient = olNS.CreateRecipient(targetMailbox)
+    targetRecipient.Resolve
+    
+    If Not targetRecipient.Resolved Then
+        MsgBox "Cannot resolve mailbox: " & targetMailbox & vbCrLf & _
+               "Check the email address and ensure you have permissions.", vbCritical
+        End
+    End If
+    
+    ' Initialize tracking dictionaries
+    Set outSentConversations = CreateObject("Scripting.Dictionary")
+    Set outMovedEmails = CreateObject("Scripting.Dictionary")
+    Set outChainEmails = CreateObject("Scripting.Dictionary")
+    
+    ' Get target mailbox Sent Items - SILENT fallback
+    Dim sentFolder As Object
+    Dim bUseSharedSent As Boolean
+    bUseSharedSent = False
+    
+    On Error Resume Next
+    Set sentFolder = olNS.GetSharedDefaultFolder(targetRecipient, 5)
+    If Err.Number = 0 And Not sentFolder Is Nothing Then
+        bUseSharedSent = True
+    End If
+    Err.Clear
+    On Error GoTo 0
+    
+    If bUseSharedSent Then
+        BuildSentConversations sentFolder, startDate, endDate, outSentConversations
+    Else
+        ' Silently skip shared sent - will use conversation matching only
+        ' No warning message
+    End If
+    
+    ' Scan ONLY target mailbox folders
+    Dim allEmails As Object
+    Set allEmails = CreateObject("Scripting.Dictionary")
+    
+    Dim targetRoot As Object
+    On Error Resume Next
+    Set targetRoot = olNS.GetSharedDefaultFolder(targetRecipient, 6).Parent
+    On Error GoTo 0
+    
+    If targetRoot Is Nothing Then
+        MsgBox "Cannot access mailbox root for " & targetMailbox, vbCritical
+        End
+    End If
+    
+    ' Scan all folders under target mailbox
+    ScanMailFolders targetRoot, startDate, endDate, allEmails, targetMailbox
+    
+    ' Process all found emails
+    Dim convID As String
+    Dim processedConversations As Object
+    Set processedConversations = CreateObject("Scripting.Dictionary")
+    
+    ' First pass: build conversation index from ALL items (to detect chains)
+    Dim emailKey As Variant
+    For Each emailKey In allEmails.Keys
+        Dim eData As Object
+        Set eData = allEmails(emailKey)
+        convID = eData("ConversationID")
+        
+        If Not outChainEmails.Exists(convID) Then
+            outChainEmails.Add convID, 1
+        Else
+            outChainEmails(convID) = outChainEmails(convID) + 1
+        End If
+    Next emailKey
+    
+    ' Second pass: process unique conversations
+    For Each emailKey In allEmails.Keys
+        Set eData = allEmails(emailKey)
+        convID = eData("ConversationID")
+        
+        If Not processedConversations.Exists(convID) Then
+            processedConversations.Add convID, eData("FolderName")
+            
+            Dim rec As Object
+            Set rec = CreateObject("Scripting.Dictionary")
+            rec.Add "EntryID", CStr(eData("EntryID"))
+            rec.Add "ConversationID", CStr(convID)
+            rec.Add "SenderName", CStr(eData("SenderName"))
+            rec.Add "SenderEmail", CStr(eData("SenderEmail"))
+            rec.Add "Subject", CStr(eData("Subject"))
+            rec.Add "ReceivedTime", CDate(eData("ReceivedTime"))
+            rec.Add "CurrentFolder", CStr(eData("FolderName"))
+            rec.Add "MailboxName", CStr(eData("MailboxName"))
+            rec.Add "ChainLength", outChainEmails(convID)
+            
+            ' Check if NOT in Inbox (moved from default location)
+            If LCase(eData("FolderName")) <> "inbox" Then
+                rec("WasMoved") = True
+                rec("OriginalLocation") = "Inbox (assumed)"
+            Else
+                rec("WasMoved") = False
+                rec("OriginalLocation") = "Inbox"
+            End If
+            
+            ' Check for replies
+            If outSentConversations.Exists(convID) Then
+                Dim replyColl As Collection
+                Set replyColl = outSentConversations(convID)
+                Dim firstReply As Date
+                firstReply = GetFirstReplyTime(replyColl)
+                
+                rec("IsReply") = True
+                rec("SentTime") = CDate(firstReply)
+                rec("ReplyTimeMinutes") = CDbl(DateDiff("n", rec("ReceivedTime"), firstReply))
+                rec("ReplyTimeHours") = CDbl(Round(rec("ReplyTimeMinutes") / 60, 2))
+                rec("ReplyStatus") = "Replied"
+                
+                Dim businessMinutes As Double
+                businessMinutes = WorkingHours24x7(rec("ReceivedTime"), rec("SentTime"))
+                rec("BusinessMinutes") = businessMinutes
+                rec("BusinessHours") = Round(businessMinutes / 60, 2)
+                
+                If businessMinutes <= 60 Then
+                    rec("SLABucket") = "Within 1 Hour"
+                ElseIf businessMinutes <= 240 Then
+                    rec("SLABucket") = "Within 4 Hours"
+                ElseIf businessMinutes <= 1440 Then
+                    rec("SLABucket") = "Within 24 Hours"
+                ElseIf businessMinutes <= 2880 Then
+                    rec("SLABucket") = "Within 48 Hours (TAT)"
+                Else
+                    rec("SLABucket") = "Over 48 Hours (TAT Breach)"
+                End If
+            Else
+                rec("IsReply") = False
+                rec("SentTime") = CDate(0)
+                rec("ReplyTimeMinutes") = CDbl(DateDiff("n", rec("ReceivedTime"), Now))
+                rec("ReplyTimeHours") = CDbl(Round(rec("ReplyTimeMinutes") / 60, 2))
+                rec("ReplyStatus") = "Not Replied"
+                rec("BusinessMinutes") = 0
+                rec("BusinessHours") = 0
+                rec("SLABucket") = "No Reply"
+            End If
+            
+            ' Forward detection
+            If outSentConversations.Exists(convID) Then
+                Dim fwdCheck As Object
+                Set fwdCheck = outSentConversations(convID)(1)
+                If InStr(LCase(CStr(fwdCheck.Subject)), "fw:") > 0 Then
+                    rec("WasForwarded") = True
+                Else
+                    rec("WasForwarded") = False
+                End If
+            Else
+                rec("WasForwarded") = False
+            End If
+            
+            result.Add rec
+        Else
+            ' Same conversation found in different folder - TRUE moved email
+            If Not outMovedEmails.Exists(convID) Then
+                outMovedEmails.Add convID, CreateObject("Scripting.Dictionary")
+                outMovedEmails(convID).Add "From", processedConversations(convID)
+                outMovedEmails(convID).Add "To", eData("FolderName")
+                outMovedEmails(convID).Add "Subject", eData("Subject")
+                outMovedEmails(convID).Add "Mailbox", eData("MailboxName")
+            Else
+                ' Update if found in yet another folder
+                outMovedEmails(convID)("To") = outMovedEmails(convID)("To") & ", " & eData("FolderName")
+            End If
+        End If
+    Next emailKey
+    
+    Set FetchEmails = result
+    Set olNS = Nothing
+    Set olApp = Nothing
+End Function
+
+Private Sub BuildSentConversations(sentFolder As Object, startDate As Date, endDate As Date, _
+                                  ByRef sentConversations As Object)
+    Dim filterStr As String
+    filterStr = "[SentOn] >= \'" & Format(startDate, "ddddd h:nn AMPM") & "\' AND " & _
+                "[SentOn] < \'" & Format(endDate + 1, "ddddd h:nn AMPM") & "\'"
+    
+    Dim sentItems As Object
+    Set sentItems = sentFolder.items
+    
+    On Error Resume Next
+    sentItems.Sort "[SentOn]", True
+    If Err.Number <> 0 Then Err.Clear
+    On Error GoTo 0
+    
+    Dim filteredSent As Object
+    On Error Resume Next
+    Set filteredSent = sentItems.Restrict(filterStr)
+    If Err.Number <> 0 Then
+        Set filteredSent = sentItems
+        Err.Clear
+    End If
+    On Error GoTo 0
+    
+    Dim sentMail As Object
+    Dim convID As String
+    
+    For Each sentMail In filteredSent
+        If sentMail.Class = 43 Then
+            convID = sentMail.ConversationID
+            If Not sentConversations.Exists(convID) Then
+                sentConversations.Add convID, New Collection
+            End If
+            sentConversations(convID).Add sentMail
+        End If
+    Next sentMail
+End Sub
+
+Private Sub ScanMailFolders(folder As Object, startDate As Date, endDate As Date, _
+                            ByRef allEmails As Object, mailboxName As String)
+    
+    Dim folderType As Integer
+    On Error Resume Next
+    folderType = folder.DefaultItemType
+    On Error GoTo 0
+    
+    If folderType = 0 Or folderType = 1 Then
+        Dim filterStr As String
+        filterStr = "[Received] >= \'" & Format(startDate, "ddddd h:nn AMPM") & "\' AND " & _
+                    "[Received] < \'" & Format(endDate + 1, "ddddd h:nn AMPM") & "\'"
+        
+        Dim items As Object
+        Set items = folder.items
+        
+        On Error Resume Next
+        items.Sort "[Received]", True
+        If Err.Number <> 0 Then Err.Clear
+        On Error GoTo 0
+        
+        Dim filteredItems As Object
+        On Error Resume Next
+        Set filteredItems = items.Restrict(filterStr)
+        If Err.Number <> 0 Then
+            Set filteredItems = items
+            Err.Clear
+        End If
+        On Error GoTo 0
+        
+        Dim item As Object
+        Dim idx As Long
+        idx = 1
+        
+        For Each item In filteredItems
+            If item.Class = 43 Then
+                Dim recTime As Date
+                Dim subj As String
+                Dim sndName As String
+                Dim sndEmail As String
+                Dim entryID As String
+                Dim conv As String
+                
+                On Error Resume Next
+                recTime = item.ReceivedTime
+                If Err.Number <> 0 Then
+                    recTime = item.CreationTime
+                    Err.Clear
+                End If
+                
+                subj = item.Subject
+                If Err.Number <> 0 Then subj = "": Err.Clear
+                
+                sndName = item.SenderName
+                If Err.Number <> 0 Then sndName = "Unknown": Err.Clear
+                
+                sndEmail = item.SenderEmailAddress
+                If Err.Number <> 0 Then sndEmail = "": Err.Clear
+                
+                entryID = item.entryID
+                If Err.Number <> 0 Then entryID = "": Err.Clear
+                
+                conv = item.ConversationID
+                If Err.Number <> 0 Then conv = "": Err.Clear
+                On Error GoTo 0
+                
+                If recTime >= startDate And recTime < (endDate + 1) Then
+                    Dim emailData As Object
+                    Set emailData = CreateObject("Scripting.Dictionary")
+                    emailData.Add "EntryID", entryID
+                    emailData.Add "ConversationID", conv
+                    emailData.Add "SenderName", sndName
+                    emailData.Add "SenderEmail", sndEmail
+                    emailData.Add "Subject", subj
+                    emailData.Add "ReceivedTime", recTime
+                    emailData.Add "FolderName", folder.Name
+                    emailData.Add "MailboxName", mailboxName
+                    
+                    allEmails.Add entryID & "_" & idx, emailData
+                    idx = idx + 1
+                End If
+            End If
+        Next item
+    End If
+    
+    Dim subFolder As Object
+    For Each subFolder In folder.Folders
+        ScanMailFolders subFolder, startDate, endDate, allEmails, mailboxName
+    Next subFolder
+End Sub
+
+Private Function GetFirstReplyTime(replyColl As Collection) As Date
+    Dim earliest As Date
+    Dim mail As Object
+    earliest = #12/31/9999#
+    
+    For Each mail In replyColl
+        If mail.SentOn < earliest Then
+            earliest = mail.SentOn
+        End If
+    Next mail
+    
+    GetFirstReplyTime = earliest
+End Function
+
+Public Function WorkingHours24x7(startTime As Date, endTime As Date) As Double
+    Dim totalMinutes As Double
+    Dim currentDay As Date
+    Dim dayStart As Date
+    Dim dayEnd As Date
+    
+    totalMinutes = 0
+    currentDay = Int(startTime)
+    
+    Do While currentDay <= Int(endTime)
+        Dim wd As Integer
+        wd = Weekday(currentDay)
+        
+        If wd <> 1 And wd <> 7 Then
+            If currentDay = Int(startTime) Then
+                dayStart = startTime
+            Else
+                dayStart = currentDay
+            End If
+            
+            If currentDay = Int(endTime) Then
+                dayEnd = endTime
+            Else
+                dayEnd = currentDay + 1
+            End If
+            
+            If dayEnd > dayStart Then
+                totalMinutes = totalMinutes + DateDiff("n", dayStart, dayEnd)
+            End If
+        End If
+        
+        currentDay = currentDay + 1
+    Loop
+    
+    WorkingHours24x7 = totalMinutes
+End Function
+
+
+
+
+
+Option Explicit
+
+Public Sub LaunchDashboard()
+    Dim startDate As Date
+    Dim endDate As Date
+    Dim mailbox As String
+    Dim todayOnly As VbMsgBoxResult
+    
+    todayOnly = MsgBox("Generate report for TODAY only?" & vbCrLf & vbCrLf & _
+                       "Click YES for today only" & vbCrLf & _
+                       "Click NO to select a date range", vbYesNoCancel + vbQuestion, "Email Dashboard")
+    
+    If todayOnly = vbCancel Then Exit Sub
+    
+    If todayOnly = vbYes Then
+        startDate = Date
+        endDate = Date
+    Else
+        Dim sStart As String, sEnd As String
+        sStart = InputBox("Enter START date (dd-mmm-yyyy):", "Date Range", Format(Date, "dd-mmm-yyyy"))
+        If sStart = "" Then Exit Sub
+        sEnd = InputBox("Enter END date (dd-mmm-yyyy):", "Date Range", Format(Date, "dd-mmm-yyyy"))
+        If sEnd = "" Then Exit Sub
+        
+        On Error Resume Next
+        startDate = CDate(sStart)
+        endDate = CDate(sEnd)
+        On Error GoTo 0
+        
+        If startDate = 0 Or endDate = 0 Then
+            MsgBox "Invalid date format. Use dd-mmm-yyyy (e.g., 01-Jun-2026)", vbExclamation
+            Exit Sub
+        End If
+    End If
+    
+    mailbox = InputBox("Enter target mailbox email (group or personal):", "Mailbox", "group@company.com")
+    If mailbox = "" Then Exit Sub
+    
+    modDashboardEngine.GenerateDashboard startDate, endDate, mailbox
+End Sub
+
+Public Sub QuickTodayReport()
+    Dim mailbox As String
+    mailbox = InputBox("Enter target mailbox email:", "Quick Today Report", "group@company.com")
+    If mailbox = "" Then Exit Sub
+    modDashboardEngine.GenerateDashboard Date, Date, mailbox
+End Sub
+
+Public Sub CreateDashboardButtons()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(1)
+    ws.Name = "Control Panel"
+    
+    Dim shp As Shape
+    For Each shp In ws.Shapes
+        shp.Delete
+    Next shp
+    
+    ws.Cells.Clear
+    
+    With ws.Range("B2")
+        .Value = "EMAIL DASHBOARD CONTROL PANEL"
+        .Font.Size = 18
+        .Font.Bold = True
+        .Font.Name = "Segoe UI"
+        .Font.Color = RGB(0, 51, 102)
+    End With
+    
+    ws.Range("B4").Value = "Click a button below to generate email reports:"
+    ws.Range("B4").Font.Italic = True
+    
+    Dim btn1 As Shape
+    Set btn1 = ws.Shapes.AddFormControl(xlButtonControl, 100, 80, 220, 45)
+    With btn1
+        .TextFrame.Characters.Text = "Email Dashboard"
+        .TextFrame.Characters.Font.Bold = True
+        .TextFrame.Characters.Font.Size = 12
+        .Fill.ForeColor.RGB = RGB(68, 114, 196)
+        .TextFrame.Characters.Font.Color = RGB(255, 255, 255)
+        .OnAction = "LaunchDashboard"
+    End With
+    
+    Dim btn2 As Shape
+    Set btn2 = ws.Shapes.AddFormControl(xlButtonControl, 100, 140, 220, 45)
+    With btn2
+        .TextFrame.Characters.Text = "Quick Today Report"
+        .TextFrame.Characters.Font.Bold = True
+        .TextFrame.Characters.Font.Size = 12
+        .Fill.ForeColor.RGB = RGB(112, 173, 71)
+        .TextFrame.Characters.Font.Color = RGB(255, 255, 255)
+        .OnAction = "QuickTodayReport"
+    End With
+    
+    ws.Range("B8").Value = "Instructions:"
+    ws.Range("B8").Font.Bold = True
+    ws.Range("B9").Value = "1. Enter any mailbox email (group or personal)"
+    ws.Range("B10").Value = "2. Macro scans ONLY that mailbox's folders"
+    ws.Range("B11").Value = "3. Detects moved emails, forwards, and chains"
+    ws.Range("B11").Font.Color = RGB(68, 114, 196)
+    ws.Range("B11").Font.Bold = True
+    
+    ws.Columns("B").ColumnWidth = 70
+    ws.Columns("A").ColumnWidth = 3
+    
+    ThisWorkbook.Save
+    MsgBox "Dashboard buttons created! Click them to run reports.", vbInformation
+End Sub
+
