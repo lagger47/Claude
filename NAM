@@ -1,0 +1,128 @@
+ Executive AR & Past Due Summary (Jan'26-Jul'26)
+Global Overview (Jul'26)
+•	Total AR: 1,420M
+•	Total Past Due: 95.0M
+•	Past Due %: 6.69%
+•	Total Deductions: 61.5M
+•	Past Due Deductions: 27.7M 
+Past Due Contribution
+•	PT: 66.7M (70%)
+•	CA: 24.3M (26%)
+•	Ignition: 4.0M (4%) 
+Why is Global Past Due at 95.0M?
+Top 5 Drivers
+1. Deductions Backlog (Largest Driver)
+•	Weak deduction lifecycle.
+•	Significant aged deductions >181 days.
+•	Concentrated in PT NAM and PT EMEA. 
+2. EDI & Portal Issues
+•	Invoices not reaching customer systems.
+•	Missing portal uploads.
+•	Customer-side EDI failures. 
+3. Quality & Warranty Disputes
+•	Customer payment holds until dispute resolution.
+•	Major exposure across Ford, VW and Stellantis accounts. 
+4. Pricing & Invoice Errors
+•	Incorrect pricing.
+•	Re-invoicing requirements.
+•	Fiscal document gaps. 
+5. Freight, POD & Order Management Issues
+•	Missing PODs.
+•	Freight billing disputes.
+•	Shipping documentation delays. 
+Regional Hotspots
+Region	Past Due (M)
+PT NAM	34.7
+PT EMEA	22.3
+CA EMEA	13.3
+PT India	4.9
+CA NAM	4.4
+Ign NAM	2.2
+
+________________________________________
+Page 2: Deductions, Root Causes & Action Plan
+Past Due and Deduction Drivers
+PT NAM Deduction Categories
+Category	Amount (M)
+Order / Shipping	4.65
+No Reason Code	2.89
+Quality / Warranty	2.22
+Return	1.69
+Price	1.45
+PT EMEA Deduction Categories
+Category	Amount (M)
+No Reason Code	3.12
+Unknown	0.42
+Price	0.35
+Order / Shipping	0.19
+
+Key Business Risks
+Critical Dispute Areas
+Region	Disputes (M)	Status	
+PT NAM	20.6	Critical	
+PT EMEA	15.4	High	
+CA EMEA	13.2	High	
+IGN EMEA	4.9	Critical	
+
+Corrective Actions
+Immediate (0-30 Days)
+•	Focus on Top-20 past due accounts.
+•	Close aged deductions.
+•	Resolve high-value disputes (>0.5M).
+•	Weekly EDI escalation reviews. 
+Mid-Term (30-60 Days)
+•	Clear deduction backlog.
+•	Correct payment-term master data.
+•	Improve invoice evidence package: 
+o	POD
+o	Packing Slip
+o	Pricing File
+o	Export/Fiscal Documents. 
+Long-Term (60-90 Days)
+•	EDI remediation program.
+•	Automated deduction resolution.
+•	Gemba and Value Stream Mapping.
+•	Preventive controls in OM and invoicing processes. 
+Leadership Support Required
+1.	Convert bi-weekly plant meeting into a decision forum.
+2.	Assign single accountable owners by root cause.
+3.	Establish 5-day SLA from Sales and Logistics.
+4.	Sponsor automation and process standardization. 
+________________________________________
+Page 3: Top Customer Past Due Analysis (Pages 8 & 9)
+Top Customer Concentration
+Customer	PD (M)	Primary Root Cause	
+CAT Aguascalientes III	1.93	Invoicing Error / EDI	
+Ford Blacksburg	1.70	Quality & Warranty	
+GM Puebla Pistons	1.61	Freight Dispute	
+Cummins Manitowoc	1.59	Tariff / EDI	
+VW Puebla Pistons	1.54	Quality Claims	
+CA Stellantis Mexico	1.51	Fiscal Documents	
+CA Ford Motor Company	1.37	Late Shipment	
+John Deere Mexico	1.09	Pricing Issue	
+CA FCA US	1.00	Late Shipment	
+
+Common Customer Root Causes (5 Why Readiness)
+EDI Issues
+•	Customer portal failures.
+•	Invoice transmission issues.
+•	Missing documents in customer systems. 
+Quality & Warranty
+•	Warranty debit memos.
+•	Product quality claims.
+•	Payments withheld until closure. 
+Freight & Shipping
+•	No approved freight guide.
+•	Freight charge disputes.
+•	Shipment receipt concerns. 
+Pricing Issues
+•	Price mismatch against PO.
+•	Outdated commercial agreements.
+•	Re-invoicing requirement. 
+Documentation Gaps
+•	Missing fiscal documents.
+•	POD requests outstanding.
+•	Customer unable to process payment. 
+Executive Takeaway
+95.0M Past Due is primarily driven by PT (66.7M), with the largest root causes being deductions backlog, EDI failures, quality/warranty disputes, pricing discrepancies and freight/documentation issues. A relatively small group of strategic customers accounts for a significant portion of the risk, making focused resolution of Top-20 accounts the fastest path to cash recovery and Past Due reduction. 
+
