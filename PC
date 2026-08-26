@@ -1,0 +1,137 @@
+Project Charter
+Project Name
+Payment Block & Debit Balance Reduction and Governance Program
+Background
+As of 27 July, ICECO continues to carry significant balances in both Payment Blocks and Vendor Debit Balances, creating risks related to supplier relationships, working capital visibility, financial reporting accuracy, and operational efficiency.
+Current Position
+Payment Blocks
+Total Payment Block Balance: $232.3M
+Key contributing categories:
+Supplier Factoring: $139.3M
+Price/Quantity Discrepancies: $43.4M
+Non-PO / 2-Way Match: $23.7M
+Manual Blocks: $6.7M
+Master Data issues: $5.7M
+Debit Balances
+Total Debit Balance: $5.67M
+Approximate supplier count: 2,367 items
+Concentrated across EMEA, China, NAM, and LATAM suppliers with aged unresolved balances.
+Business Problem Statement
+Unresolved payment blocks and vendor debit balances are impacting:
+Timely supplier payments
+Working capital transparency
+Financial statement accuracy
+AP operational productivity
+Vendor relationship management
+Internal and external audit compliance
+A structured governance model is required to drive sustainable reduction and prevent future recurrence.
+Project Objective
+Payment Block
+Reduce payment block inventory by addressing root causes and establishing preventive controls.
+Debit Balance
+Reduce vendor debit balances through recovery, clearing, offsetting, and process correction initiatives.
+Scope
+In Scope
+Payment Blocks
+Supplier Factoring
+Price/Quantity Discrepancy
+Non-PO invoices
+Manual payment blocks
+Master Data blocks
+Sales dispute blocks
+Withholding Tax blocks
+Debit Balances
+Open vendor debit balances
+Aged debit balances (>90 days)
+Incorrect postings
+Duplicate payments
+Vendor overpayments
+GRIR-related debit balances
+Out of Scope
+Legal disputes under litigation
+Approved supplier financing arrangements
+Intercompany balances
+Historical balances already under remediation projects
+Targets
+KPI	Baseline (27 July)	Target
+Total Payment Blocks	$232.3M	30% reduction within 6 months
+Supplier Factoring Blocks	$139.3M	20% reduction
+P/Q Blocks	$43.4M	40% reduction
+Non PO Blocks	$23.7M	50% reduction
+Vendor Debit Balance	$5.67M	50% reduction
+Aged Items >180 Days	Current Baseline	75% reduction
+Root Cause Workstreams
+Workstream 1: Supplier Factoring
+Owner: Treasury / AP
+Actions:
+Validate factoring vendors.
+Auto-release approved factoring invoices.
+Monthly review of blocked factoring transactions.
+Workstream 2: Price & Quantity Discrepancy
+Owner: Procurement / Receiving / AP
+Actions:
+Weekly mismatch review.
+Buyer accountability matrix.
+Escalation for aged discrepancies >30 days.
+Workstream 3: Non-PO Invoices
+Owner: Business Functions
+Actions:
+Improve PO compliance.
+Introduce approval workflow SLA.
+Reduce manual processing.
+Workstream 4: Manual Blocks
+Owner: AP Operations
+Actions:
+Mandatory block reason codes.
+Monthly aging review.
+Auto-notification for aged blocks.
+Workstream 5: Debit Balance Recovery
+Owner: AP Team
+Actions:
+Vendor confirmations.
+Net-off opportunities.
+Credit note recovery.
+Duplicate payment recovery tracking.
+Governance Structure
+Role	Responsibility
+Executive Sponsor	CFO / Finance Director
+Project Lead	AP Service Delivery Manager
+AP Operations Team	Resolution and follow-up
+Procurement Team	Price/PO corrections
+Plant Controllers	Business approvals
+Treasury	Factoring governance
+Master Data Team	Vendor master corrections
+Reporting Cadence
+Frequency	Deliverable
+Weekly	Action tracker review
+Bi-weekly	Aging dashboard
+Monthly	CFO Steering Committee update
+Quarterly	Sustainability review
+Key Success Metrics
+Reduction in blocked invoice volume
+Reduction in debit balances
+Increase in auto-pay eligible invoices
+Improvement in first-pass match rate
+Reduction in aged exceptions (>90 days)
+Improved vendor satisfaction
+Expected Benefits
+Financial
+Release of blocked working capital
+Improved liability accuracy
+Faster debit recovery
+Operational
+Reduced AP manual effort
+Improved invoice throughput
+Better plant accountability
+Compliance
+Stronger audit trail
+Improved control environment
+Reduced payment risk
+Strategic
+Stronger supplier relationships
+Improved cash flow predictability
+Standardized global AP governance
+Project Duration: 6 Months
+Target Completion: January 2027
+Project Sponsor: CFO / Global Finance Leadership
+Project Owner: AP Transformation & Operations Team (ICECO)
