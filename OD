@@ -1,0 +1,741 @@
+Old Header in RAW Data
+"ERP System 
+(Select from the list)"
+Region 
+"BU 
+(Select from the list)"
+Product Group (Select)
+Location Name
+G/L Account
+Company Code
+Account
+Name 1
+Business Area
+Special G/L ind.
+Reference
+Assignment
+Document Number
+Billing Document
+Dunning Block
+User name
+Document Type
+Posting Key
+Posting Date
+Document Date
+Terms of Payment
+Pmt meth. supplement
+Debit/Credit Ind.
+Amount in doc. curr.
+Document currency
+Amount in local currency
+Local Currency
+Net due date
+Adjusted Net Due date
+Arrears after net due date
+Clearing Document
+Clearing date
+Reason code
+Accts rble pled.ind.
+Entry Date
+Transaction Code
+Transaction Type
+Text
+Reference Key 1
+Reference Key 2
+Reference Key 3
+Ref.key (header) 1
+Ref.key (header) 2
+Line Item
+Payment Week
+Year
+Current Date
+Age
+Aging Bucket
+FX Rates
+Amount in USD
+Amount in $Millions
+Account Type
+Category
+Plant
+Due Year+month
+Reason Code Description
+RC Type
+RC Category
+Days Delinquent
+New Category
+BU Split
+Country
+Customer Name
+CRG
+Responsible AR Person
+Customer Group (Local Level)
+Customer Group (Global Level)
+Factoring Yes/No
+Category of Deductions
+Teams Responsible for Action
+Portfolio Finance Leader
+
+New Header in RAW Data
+ERP System
+Region
+BU
+Product Group
+Location Name
+G/L Account
+Company Code
+Account
+Name1
+Business Area
+Reference
+Assignment
+Document Number
+Billing Document
+Dunning Block
+User name
+Document Type
+Posting Key
+Posting Date
+Document Date
+Terms of Payment
+Debit/Credit Ind.
+Amount in doc. curr.
+Document Currency
+Amount in local curr.
+Net Due Date
+Adjusted Net Due Date
+Clearing Document
+Clearing Date
+Reason Code
+Accts rble pled.ind.
+Transaction Code
+Transaction Type
+Text
+Reference key 1
+Reference key 2
+Reference key 3
+Ref.key (header) 1
+Ref.key (header) 2
+Payment Week
+Year
+Age
+Aging Bucket
+FX Rates
+Amount in USD
+Amount in $Millions
+Plant
+Reason Code Description
+RC Category
+Days Deliquent
+New Category
+BU Split
+Country
+Customer Name
+Responsible AR Person
+Customer Group (Global Level)
+Factoring Yes/No
+Category of Deductions
+Teams Responsible for Action
+Portfolio Finance Leader
+
+Option Explicit
+
+' ============================================================================
+' AGING FILE CLEANER & PORTFOLIO FILE GENERATOR
+' ----------------------------------------------------------------------------
+' PART 1 - CleanAgingFile:
+'   1. Keep rows where Region IN ("EMEA","NAM")
+'   2. Add columns: Portfolio Owner, CIA/COA
+'   3. Lookup Plant -> Portfolio Owner from local "Mapping" sheet
+'   4. Override: Plant="Port Elizabeth" AND BU="PT" -> Portfolio Owner = "Markus"
+'   5. NAM + Reason code IN ("P50","UAP")           -> CIA/COA = "COA"
+'   6. Reason code = "P52" (any region)             -> CIA/COA = "CIA"   (wins)
+'   7. EMEA + Text contains COA keyword (word-bdry) -> CIA/COA = "COA"
+'   8. EMEA + still blank + CIA keyword (word-bdry) -> CIA/COA = "CIA"
+'   9. Anything still blank in CIA/COA              -> "No"  (logged in Exceptions)
+'   Output: "Cleaned" sheet. Issues -> "Exceptions" sheet.
+'
+' PART 2 - GeneratePortfolioFiles:
+'   Reads "Cleaned" and creates one .xlsx per Portfolio Owner with sheets:
+'     Collection | Deduction | Unapplied | Data
+'   Each sheet contains the specified pivot tables.
+' ============================================================================
+
+' --- USER-EDITABLE CONFIG (Part 1) ------------------------------------------
+Private Const MAIN_SHEET_NAME    As String = "Sheet1"
+Private Const MAPPING_SHEET_NAME As String = "Mapping"
+Private Const OUTPUT_SHEET_NAME  As String = "Cleaned"
+Private Const EXCEPTIONS_SHEET   As String = "Exceptions"
+
+Private Const MAPPING_PLANT_HDR  As String = "Plant"
+Private Const MAPPING_OWNER_HDR  As String = "Portfolio Owners"
+
+Private Const OVERRIDE_PLANT     As String = "Port Elizabeth"
+Private Const OVERRIDE_BU        As String = "PT"
+Private Const OVERRIDE_OWNER     As String = "Markus Kuschnitzke"
+
+Private Const COA_KEYWORDS       As String = "COA|on account|on a/c"
+Private Const CIA_KEYWORDS       As String = "CIA|advance|advances|adv payment"
+
+Private Const HDR_REGION         As String = "Region"
+Private Const HDR_BU             As String = "BU"
+Private Const HDR_PLANT          As String = "Plant"
+Private Const HDR_REASON_CODE    As String = "Reason code"
+Private Const HDR_TEXT           As String = "Text"
+
+' --- USER-EDITABLE CONFIG (Part 2) ------------------------------------------
+Private Const OUTPUT_SUBFOLDER     As String = "Owner_Files"
+Private Const BLANK_OWNER_LABEL    As String = "Unassigned"
+
+Private Const FLD_NEW_CATEGORY     As String = "New Category"
+Private Const FLD_AGING_BUCKET     As String = "Aging Bucket"
+Private Const FLD_PLANT            As String = "Plant"
+Private Const FLD_NAME1            As String = "Name 1"
+Private Const FLD_RC_CATEGORY      As String = "RC Category"
+Private Const FLD_AMOUNT_USDM      As String = "Amount in $Millions"
+Private Const FLD_CIA_COA          As String = "CIA/COA"
+Private Const FLD_PORTFOLIO_OWNER  As String = "Portfolio Owner"
+
+Private Const VALUE_CAPTION        As String = "Sum of Amount in $Millions"
+' ----------------------------------------------------------------------------
+
+' Module-level regex cache (faster than rebuilding per row)
+Private mRegex As Object
+
+
+' ============================================================================
+' PART 1 - Clean aging file
+' ============================================================================
+
+Public Sub CleanAgingFile()
+    Dim wsSrc As Worksheet, wsMap As Worksheet
+    Dim wsOut As Worksheet, wsErr As Worksheet
+    Dim mapDict As Object
+    Dim t As Double: t = Timer
+    Dim okFinish As Boolean: okFinish = False
+    Dim keepers As Long, exCount As Long
+
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    Application.EnableEvents = False
+
+    On Error GoTo errHandler
+
+    Set wsSrc = GetSheet(MAIN_SHEET_NAME)
+    Set wsMap = GetSheet(MAPPING_SHEET_NAME)
+    If wsSrc Is Nothing Then Err.Raise vbObjectError + 2001, , _
+        "Source sheet '" & MAIN_SHEET_NAME & "' not found."
+    If wsMap Is Nothing Then Err.Raise vbObjectError + 2002, , _
+        "Mapping sheet '" & MAPPING_SHEET_NAME & "' not found."
+
+    Set mapDict = BuildPlantOwnerDict(wsMap)
+    If mapDict.Count = 0 Then Err.Raise vbObjectError + 2003, , _
+        "Mapping sheet has no rows."
+
+    Dim lastRow As Long, lastCol As Long
+    lastRow = wsSrc.Cells(wsSrc.Rows.Count, 1).End(xlUp).Row
+    lastCol = wsSrc.Cells(1, wsSrc.Columns.Count).End(xlToLeft).Column
+    If lastRow < 2 Then Err.Raise vbObjectError + 2004, , _
+        "No data rows in '" & MAIN_SHEET_NAME & "'."
+
+    Dim data As Variant
+    data = wsSrc.Range(wsSrc.Cells(1, 1), wsSrc.Cells(lastRow, lastCol)).Value
+
+    Dim colRegion As Long, colBU As Long, colPlant As Long
+    Dim colReason As Long, colText As Long
+    colRegion = ResolveCol(data, HDR_REGION, True)
+    colBU = ResolveCol(data, HDR_BU, False)
+    colPlant = ResolveCol(data, HDR_PLANT, True)
+    colReason = ResolveCol(data, HDR_REASON_CODE, True)
+    colText = ResolveCol(data, HDR_TEXT, True)
+
+    Dim nCols As Long: nCols = lastCol + 2
+    Dim colOwner As Long: colOwner = lastCol + 1
+    Dim colCC As Long: colCC = lastCol + 2
+
+    Dim r As Long
+    For r = 2 To lastRow
+        Select Case UCase$(Trim$(CStr(data(r, colRegion))))
+            Case "EMEA", "NAM": keepers = keepers + 1
+        End Select
+    Next r
+
+    Dim outArr As Variant
+    ReDim outArr(1 To keepers + 1, 1 To nCols)
+
+    Dim exSize As Long
+    If keepers > 0 Then exSize = keepers Else exSize = 1
+    Dim exArr() As Variant
+    ReDim exArr(1 To exSize, 1 To 3)
+
+    Dim c As Long
+    For c = 1 To lastCol
+        outArr(1, c) = data(1, c)
+    Next c
+    outArr(1, colOwner) = "Portfolio Owner"
+    outArr(1, colCC) = "CIA/COA"
+
+    Dim outRow As Long: outRow = 1
+    Dim region As String, bu As String, plant As String
+    Dim reason As String, txt As String
+    Dim owner As String, cc As String
+
+    For r = 2 To lastRow
+        region = UCase$(Trim$(CStr(data(r, colRegion))))
+        If region = "EMEA" Or region = "NAM" Then
+            outRow = outRow + 1
+
+            For c = 1 To lastCol
+                outArr(outRow, c) = data(r, c)
+            Next c
+
+            bu = UCase$(Trim$(CStr(data(r, colBU))))
+            plant = Trim$(CStr(data(r, colPlant)))
+            reason = UCase$(Trim$(CStr(data(r, colReason))))
+            txt = CStr(data(r, colText))
+
+            If StrComp(plant, OVERRIDE_PLANT, vbTextCompare) = 0 _
+               And bu = UCase$(OVERRIDE_BU) Then
+                owner = OVERRIDE_OWNER
+            ElseIf Len(plant) > 0 And mapDict.Exists(UCase$(plant)) Then
+                owner = mapDict(UCase$(plant))
+            Else
+                owner = ""
+                exCount = exCount + 1
+                exArr(exCount, 1) = "Row " & r
+                exArr(exCount, 2) = "Plant not in mapping: '" & plant & "'"
+                exArr(exCount, 3) = ""
+            End If
+            outArr(outRow, colOwner) = owner
+
+            cc = ClassifyCIACOA(region, reason, txt)
+            outArr(outRow, colCC) = IIf(cc = "", "No", cc)
+
+            If cc = "" Then
+                exCount = exCount + 1
+                exArr(exCount, 1) = "Row " & r
+                exArr(exCount, 2) = "Unclassified CIA/COA (region=" & region & _
+                                    ", reason=" & reason & ") - set to 'No'"
+                exArr(exCount, 3) = Left$(txt, 200)
+            End If
+        End If
+    Next r
+
+    Application.DisplayAlerts = False
+    On Error Resume Next
+    ThisWorkbook.Worksheets(OUTPUT_SHEET_NAME).Delete
+    ThisWorkbook.Worksheets(EXCEPTIONS_SHEET).Delete
+    On Error GoTo errHandler
+    Application.DisplayAlerts = True
+
+    Set wsOut = ThisWorkbook.Worksheets.Add(After:=wsSrc)
+    wsOut.Name = OUTPUT_SHEET_NAME
+    wsOut.Range(wsOut.Cells(1, 1), wsOut.Cells(keepers + 1, nCols)).Value = outArr
+    With wsOut.Rows(1)
+        .Font.Bold = True
+        .Interior.Color = RGB(220, 230, 241)
+    End With
+    wsOut.Columns.AutoFit
+    wsOut.Activate
+    wsOut.Range("A2").Select
+    ActiveWindow.FreezePanes = True
+
+    If exCount > 0 Then
+        Set wsErr = ThisWorkbook.Worksheets.Add(After:=wsOut)
+        wsErr.Name = EXCEPTIONS_SHEET
+        wsErr.Range("A1:C1").Value = Array("Row", "Issue", "Text Sample")
+        wsErr.Range(wsErr.Cells(2, 1), wsErr.Cells(exCount + 1, 3)).Value = exArr
+        With wsErr.Rows(1)
+            .Font.Bold = True
+            .Interior.Color = RGB(252, 213, 180)
+        End With
+        wsErr.Columns.AutoFit
+    End If
+
+    okFinish = True
+
+errHandler:
+    Dim errMsg As String
+    If Err.Number <> 0 Then errMsg = "Error " & Err.Number & ": " & Err.Description
+
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
+    Set mRegex = Nothing
+
+    If Len(errMsg) > 0 Then
+        MsgBox errMsg, vbCritical, "CleanAgingFile"
+    ElseIf okFinish Then
+        MsgBox "Done." & vbCrLf & vbCrLf & _
+               keepers & " rows written to '" & OUTPUT_SHEET_NAME & "'." & vbCrLf & _
+               exCount & " exceptions logged" & _
+               IIf(exCount > 0, " in '" & EXCEPTIONS_SHEET & "'.", ".") & vbCrLf & _
+               "Elapsed: " & Format$(Timer - t, "0.0") & " seconds.", _
+               vbInformation, "CleanAgingFile"
+    End If
+End Sub
+
+
+' ============================================================================
+' PART 2 - Per-owner files with pivots
+' ============================================================================
+
+Public Sub GeneratePortfolioFiles()
+    Dim wsClean As Worksheet
+    Dim t As Double: t = Timer
+    Dim outputFolder As String
+    Dim created As Long
+    Dim okFinish As Boolean: okFinish = False
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+
+    On Error GoTo errHandler
+
+    Set wsClean = GetSheet(OUTPUT_SHEET_NAME)
+    If wsClean Is Nothing Then Err.Raise vbObjectError + 3001, , _
+        "'" & OUTPUT_SHEET_NAME & "' sheet not found. Run CleanAgingFile first."
+
+    If Len(ThisWorkbook.Path) = 0 Then Err.Raise vbObjectError + 3002, , _
+        "Save this workbook to disk before running. Output is written next to it."
+
+    outputFolder = ThisWorkbook.Path & Application.PathSeparator & OUTPUT_SUBFOLDER
+    If Len(Dir(outputFolder, vbDirectory)) = 0 Then MkDir outputFolder
+
+    Dim lr As Long, lc As Long
+    lr = wsClean.Cells(wsClean.Rows.Count, 1).End(xlUp).Row
+    lc = wsClean.Cells(1, wsClean.Columns.Count).End(xlToLeft).Column
+    If lr < 2 Then Err.Raise vbObjectError + 3003, , _
+        "'" & OUTPUT_SHEET_NAME & "' has no data rows."
+
+    Dim data As Variant
+    data = wsClean.Range(wsClean.Cells(1, 1), wsClean.Cells(lr, lc)).Value
+
+    Dim colOwner As Long
+    colOwner = ResolveCol(data, FLD_PORTFOLIO_OWNER, True)
+
+    Dim required As Variant, req As Variant
+    required = Array(FLD_NEW_CATEGORY, FLD_AGING_BUCKET, FLD_PLANT, _
+                     FLD_NAME1, FLD_RC_CATEGORY, FLD_AMOUNT_USDM, FLD_CIA_COA)
+    For Each req In required
+        ResolveCol data, CStr(req), True
+    Next req
+
+    Dim ownerRows As Object
+    Set ownerRows = CreateObject("Scripting.Dictionary")
+    ownerRows.CompareMode = vbTextCompare
+
+    Dim r As Long, ow As String
+    For r = 2 To lr
+        ow = Trim$(CStr(data(r, colOwner)))
+        If Len(ow) = 0 Then ow = BLANK_OWNER_LABEL
+        If Not ownerRows.Exists(ow) Then ownerRows.Add ow, New Collection
+        ownerRows(ow).Add r
+    Next r
+
+    Dim ownerKey As Variant
+    For Each ownerKey In ownerRows.Keys
+        BuildOneOwnerFile CStr(ownerKey), ownerRows(ownerKey), data, lc, outputFolder
+        created = created + 1
+    Next ownerKey
+
+    okFinish = True
+
+errHandler:
+    Dim errMsg As String
+    If Err.Number <> 0 Then errMsg = "Error " & Err.Number & ": " & Err.Description
+
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    Application.EnableEvents = True
+    Application.Calculation = xlCalculationAutomatic
+
+    If Len(errMsg) > 0 Then
+        MsgBox errMsg, vbCritical, "GeneratePortfolioFiles"
+    ElseIf okFinish Then
+        MsgBox "Created " & created & " owner file(s) in:" & vbCrLf & _
+               outputFolder & vbCrLf & vbCrLf & _
+               "Elapsed: " & Format$(Timer - t, "0.0") & "s", _
+               vbInformation, "GeneratePortfolioFiles"
+    End If
+End Sub
+
+
+Private Sub BuildOneOwnerFile( _
+    ownerName As String, _
+    rowList As Collection, _
+    cleanedData As Variant, _
+    nCols As Long, _
+    outFolder As String _
+)
+    Dim wbNew As Workbook
+    Dim wsData As Worksheet, wsColl As Worksheet
+    Dim wsDed As Worksheet, wsUnapp As Worksheet
+
+    Set wbNew = Workbooks.Add(xlWBATWorksheet)
+    Set wsColl = wbNew.Worksheets(1):                  wsColl.Name = "Collection"
+    Set wsDed = wbNew.Worksheets.Add(After:=wsColl):   wsDed.Name = "Deduction"
+    Set wsUnapp = wbNew.Worksheets.Add(After:=wsDed):  wsUnapp.Name = "Unapplied"
+    Set wsData = wbNew.Worksheets.Add(After:=wsUnapp): wsData.Name = "Data"
+
+    Dim outArr As Variant
+    ReDim outArr(1 To rowList.Count + 1, 1 To nCols)
+
+    Dim c As Long
+    For c = 1 To nCols
+        outArr(1, c) = cleanedData(1, c)
+    Next c
+
+    Dim i As Long, srcRow As Long
+    For i = 1 To rowList.Count
+        srcRow = CLng(rowList(i))
+        For c = 1 To nCols
+            outArr(i + 1, c) = cleanedData(srcRow, c)
+        Next c
+    Next i
+
+    wsData.Range(wsData.Cells(1, 1), wsData.Cells(rowList.Count + 1, nCols)).Value = outArr
+    wsData.Rows(1).Font.Bold = True
+    wsData.Columns.AutoFit
+
+    Dim srcRange As Range
+    Set srcRange = wsData.Range("A1").CurrentRegion
+
+    Dim nextRow As Long
+
+    ' Collection (2 pivots)
+    nextRow = 3
+    nextRow = AddPivotFresh(wbNew, srcRange, wsColl, nextRow, _
+        Array(FLD_NEW_CATEGORY), Array(FLD_AGING_BUCKET), Array(FLD_PLANT), _
+        "pvtColl1") + 4
+    nextRow = AddPivotFresh(wbNew, srcRange, wsColl, nextRow, _
+        Array(FLD_AGING_BUCKET, FLD_NEW_CATEGORY), Array(FLD_PLANT), Array(FLD_NAME1), _
+        "pvtColl2") + 4
+
+    ' Deduction (3 pivots)
+    nextRow = 3
+    nextRow = AddPivotFresh(wbNew, srcRange, wsDed, nextRow, _
+        Array(FLD_NEW_CATEGORY), Array(FLD_AGING_BUCKET), Array(FLD_PLANT), _
+        "pvtDed1") + 4
+    nextRow = AddPivotFresh(wbNew, srcRange, wsDed, nextRow, _
+        Array(FLD_NEW_CATEGORY), Array(FLD_PLANT), Array(FLD_RC_CATEGORY), _
+        "pvtDed2") + 4
+    nextRow = AddPivotFresh(wbNew, srcRange, wsDed, nextRow, _
+        Array(FLD_NEW_CATEGORY), Array(FLD_PLANT), Array(FLD_NAME1), _
+        "pvtDed3") + 4
+
+    ' Unapplied (2 pivots, identical per spec)
+    nextRow = 3
+    nextRow = AddPivotFresh(wbNew, srcRange, wsUnapp, nextRow, _
+        Array(FLD_CIA_COA, FLD_NEW_CATEGORY), Array(FLD_PLANT), Array(FLD_AGING_BUCKET), _
+        "pvtUnapp1") + 4
+    nextRow = AddPivotFresh(wbNew, srcRange, wsUnapp, nextRow, _
+        Array(FLD_CIA_COA, FLD_NEW_CATEGORY), Array(FLD_PLANT), Array(FLD_AGING_BUCKET), _
+        "pvtUnapp2") + 4
+
+    wsColl.Activate
+    wsColl.Range("A1").Select
+
+    Dim fullPath As String
+    fullPath = outFolder & Application.PathSeparator & _
+               SanitizeFilename(ownerName) & _
+               "_Aging_" & Format$(Date, "yyyy-mm-dd") & ".xlsx"
+
+    wbNew.SaveAs Filename:=fullPath, FileFormat:=xlOpenXMLWorkbook
+    wbNew.Close SaveChanges:=False
+End Sub
+
+
+' Creates a fresh cache for each pivot - slower but avoids cross-pivot
+' Orientation conflicts that can occur when several pivots share one cache.
+Private Function AddPivotFresh( _
+    wb As Workbook, _
+    srcRange As Range, _
+    wsDest As Worksheet, _
+    startRow As Long, _
+    pageFlds As Variant, _
+    colFlds As Variant, _
+    rowFlds As Variant, _
+    ptName As String _
+) As Long
+    Dim pc As PivotCache
+    Set pc = wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=srcRange)
+    AddPivotFresh = AddPivot(pc, wsDest, startRow, pageFlds, colFlds, rowFlds, ptName)
+End Function
+
+Private Function AddPivot( _
+    pc As PivotCache, _
+    wsDest As Worksheet, _
+    startRow As Long, _
+    pageFlds As Variant, _
+    colFlds As Variant, _
+    rowFlds As Variant, _
+    ptName As String _
+) As Long
+    Dim pt As PivotTable
+    Set pt = pc.CreatePivotTable( _
+        TableDestination:=wsDest.Cells(startRow, 1), _
+        TableName:=ptName)
+
+    Dim f As Variant, fname As String
+    On Error GoTo fieldErr
+
+    For Each f In pageFlds
+        fname = CStr(f)
+        pt.PivotFields(fname).Orientation = xlPageField
+    Next f
+    For Each f In colFlds
+        fname = CStr(f)
+        pt.PivotFields(fname).Orientation = xlColumnField
+    Next f
+    For Each f In rowFlds
+        fname = CStr(f)
+        pt.PivotFields(fname).Orientation = xlRowField
+    Next f
+
+    fname = FLD_AMOUNT_USDM
+    pt.AddDataField pt.PivotFields(FLD_AMOUNT_USDM), VALUE_CAPTION, xlSum
+
+    On Error Resume Next
+    pt.DataFields(1).NumberFormat = "#,##0.000"
+    On Error GoTo 0
+
+    ' Bottom row = last row actually used by this pivot (filter rows + body)
+    Dim lastUsed As Long
+    lastUsed = pt.TableRange2.Cells(pt.TableRange2.Cells.Count).Row
+    AddPivot = lastUsed
+    Exit Function
+
+fieldErr:
+    Err.Raise vbObjectError + 4001, "AddPivot", _
+        "Pivot '" & ptName & "' failed on field '" & fname & "'. " & _
+        "Check that the Data sheet has a column with that exact header " & _
+        "(case-insensitive, but spaces/spelling must match). " & _
+        "If your data uses a different name, update the FLD_* constant at the top of the module."
+End Function
+
+
+' ============================================================================
+' Shared helpers
+' ============================================================================
+
+Private Function GetSheet(nm As String) As Worksheet
+    On Error Resume Next
+    Set GetSheet = ThisWorkbook.Worksheets(nm)
+    On Error GoTo 0
+End Function
+
+
+Private Function BuildPlantOwnerDict(wsMap As Worksheet) As Object
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = vbTextCompare
+
+    Dim lr As Long: lr = wsMap.Cells(wsMap.Rows.Count, 1).End(xlUp).Row
+    Dim lc As Long: lc = wsMap.Cells(1, wsMap.Columns.Count).End(xlToLeft).Column
+    If lr < 2 Or lc < 1 Then
+        Set BuildPlantOwnerDict = d
+        Exit Function
+    End If
+
+    Dim arr As Variant
+    arr = wsMap.Range(wsMap.Cells(1, 1), wsMap.Cells(lr, lc)).Value
+
+    Dim cPlant As Long, cOwner As Long
+    cPlant = ResolveCol(arr, MAPPING_PLANT_HDR, True)
+    cOwner = ResolveCol(arr, MAPPING_OWNER_HDR, True)
+
+    Dim r As Long, k As String, v As String
+    For r = 2 To UBound(arr, 1)
+        k = UCase$(Trim$(CStr(arr(r, cPlant))))
+        v = Trim$(CStr(arr(r, cOwner)))
+        If Len(k) > 0 And Not d.Exists(k) Then d(k) = v
+    Next r
+
+    Set BuildPlantOwnerDict = d
+End Function
+
+
+Private Function ResolveCol(arr As Variant, headerName As String, exactMatch As Boolean) As Long
+    Dim c As Long, h As String
+    For c = 1 To UBound(arr, 2)
+        h = Trim$(CStr(arr(1, c)))
+        If exactMatch Then
+            If StrComp(h, headerName, vbTextCompare) = 0 Then
+                ResolveCol = c: Exit Function
+            End If
+        Else
+            If InStr(1, h, headerName, vbTextCompare) > 0 Then
+                ResolveCol = c: Exit Function
+            End If
+        End If
+    Next c
+    Err.Raise vbObjectError + 1001, "ResolveCol", _
+              "Header not found: '" & headerName & "'. Check the header row spelling."
+End Function
+
+
+Private Function ClassifyCIACOA(region As String, reason As String, txt As String) As String
+    If reason = "P52" Then ClassifyCIACOA = "CIA": Exit Function
+
+    If region = "NAM" Then
+        If reason = "P50" Or reason = "UAP" Then
+            ClassifyCIACOA = "COA": Exit Function
+        End If
+    End If
+
+    If region = "EMEA" Then
+        If ContainsAnyWord(txt, COA_KEYWORDS) Then
+            ClassifyCIACOA = "COA": Exit Function
+        End If
+        If ContainsAnyWord(txt, CIA_KEYWORDS) Then
+            ClassifyCIACOA = "CIA": Exit Function
+        End If
+    End If
+
+    ClassifyCIACOA = ""
+End Function
+
+
+Private Function ContainsAnyWord(text As String, pipeList As String) As Boolean
+    If Len(text) = 0 Then Exit Function
+
+    If mRegex Is Nothing Then
+        Set mRegex = CreateObject("VBScript.RegExp")
+        mRegex.IgnoreCase = True
+        mRegex.Global = False
+    End If
+
+    Dim parts() As String, i As Long, needle As String
+    parts = Split(pipeList, "|")
+    For i = LBound(parts) To UBound(parts)
+        needle = Trim$(parts(i))
+        If Len(needle) > 0 Then
+            mRegex.Pattern = "\b" & EscapeRegex(needle) & "\b"
+            If mRegex.Test(text) Then
+                ContainsAnyWord = True: Exit Function
+            End If
+        End If
+    Next i
+End Function
+
+
+Private Function EscapeRegex(s As String) As String
+    Dim special As String, i As Long, c As String, out As String
+    special = ".\+*?[]^$(){}|"
+    For i = 1 To Len(s)
+        c = Mid$(s, i, 1)
+        If InStr(special, c) > 0 Then out = out & "\" & c Else out = out & c
+    Next i
+    EscapeRegex = out
+End Function
+Private Function SanitizeFilename(s As String) As String
+    Dim bad As String, i As Long, out As String, ch As String
+    bad = "\/:*?""<>|"
+    For i = 1 To Len(s)
+        ch = Mid$(s, i, 1)
+        If InStr(bad, ch) > 0 Then out = out & "_" Else out = out & ch
+    Next i
+    SanitizeFilename = Trim$(out)
+End Function
