@@ -1,0 +1,107 @@
+need a one pager slide for this data Analysis of the Top 10 Customers from Book3 - Copy.xlsx: [Book3 - Copy | Excel]
+Overall Position
+Total Current Week Past Due: $15.56M [Book3 - Copy | Excel]
+Total Prior Week Past Due: $13.23M [Book3 - Copy | Excel]
+Week-over-Week Increase: $2.33M [Book3 - Copy | Excel]
+Top 10 Customers by Current Past Due
+Rank	Customer	Current Past Due (USD)	WoW Change
+1	A	$2.47M	+$1.98M
+2	B	$2.02M	+$0.41M
+3	C	$1.78M	+$0.08M
+4	D	$1.59M	+$0.05M
+5	E	$1.55M	+$0.41M
+6	F	$1.47M	-$0.46M
+7	G	$1.37M	-$0.22M
+8	H	$1.23M	-$0.05M
+9	I	$1.19M	+$0.08M
+10	J	$0.88M	+$0.04M
+Source: Book3 - Copy.xlsx [Book3 - Copy | Excel]
+Issue Category Analysis
+1. Freight / Shipping Issues
+Largest Exposure
+Customer	Amount
+A	$2.40M
+B	$1.50M
+Total Identified: ~$3.90M [Book3 - Copy | Excel]
+Key observations:
+Customer A's overdue balance is driven primarily by freight disputes.
+Customer B lacks a freight guide and requires customer response on open tickets. [Book3 - Copy | Excel]
+2. Quality / Warranty Issues
+Second Largest Exposure
+Customer	Amount
+C	~$873K quality disputes
+D	~$1.10M quality disputes
+I	Warranty hold
+J	Warranty hold
+Estimated Exposure: ~$2.0M+ identified plus payment holds at I and J. [Book3 - Copy | Excel]
+Key observations:
+Customer D has the largest quality-related dispute pool.
+Customers I and J payments are on hold due to warranty debit balances of $3.1M. [Book3 - Copy | Excel]
+3. EDI / IT Issues
+Major Recurring Root Cause
+Customer	Amount
+F	$427K
+G	$329K
+H	$390K
+Total: ~$1.15M [Book3 - Copy | Excel]
+Key observations:
+EDI failures are recurring across multiple customers.
+Most cases require coordination between customer IT teams and Tenneco EDI support. [Book3 - Copy | Excel]
+4. Pricing Issues
+Customer	Amount
+B	$303K
+D	$100K
+Total: ~$404K [Book3 - Copy | Excel]
+Key observations:
+Pricing mismatches continue to delay collections.
+B represents the highest pricing exposure. [Book3 - Copy | Excel]
+5. Invoice Receipt / Not Received / GR Issues
+Customer	Amount
+C	$184K
+D	$204K
+H	$502K
+C	$73K + $111K Not GR
+Total Identified: ~$1.07M [Book3 - Copy | Excel]
+Key observations:
+Customer H has the largest "invoice not received" issue.
+Missing invoice receipt and GR confirmation remain major collection blockers. [Book3 - Copy | Excel]
+6. Tariff / Documentation Issues
+Customer	Amount
+G	$536K tariff invoices
+G	$486K rejected tariff invoices
+Total: ~$1.02M [Book3 - Copy | Excel]
+Key observations:
+Incorrect remit address configuration is preventing payment.
+Requires Sales and Sourcing coordination. [Book3 - Copy | Excel]
+Customers Requiring Highest Management Attention
+Priority 1
+Customer A
+Past due: $2.47M
+97% driven by freight disputes.
+Strong opportunity for fast resolution once documentation is completed. [Book3 - Copy | Excel]
+Priority 2
+Customer B
+Past due: $2.02M
+Freight dispute ($1.5M) plus pricing disputes ($303K).
+Priority 3
+Customer D
+Past due: $1.59M
+$1.1M quality-related disputes. [Book3 - Copy | Excel]
+Priority 4
+Customer H
+Past due: $1.23M
+$390K EDI issues and $502K invoice receipt issues. [Book3 - Copy | Excel]
+Priority 5
+Customer G
+Past due: $1.37M
+Over $1.0M linked to tariff invoice and remit-address issues. [Book3 - Copy | Excel]
+Executive Summary
+The largest drivers of the $15.56M past-due balance are:
+Freight disputes: ~$3.9M
+Quality/Warranty disputes: ~$2.0M+
+EDI/IT issues: ~$1.15M
+Invoice receipt / GR issues: ~$1.07M
+Tariff documentation issues: ~$1.02M
+Pricing disputes: ~$404K
+The biggest recovery opportunities are Customers A, B, D, G, and H, where dispute resolution rather than collection effort appears to be the primary barrier. [Book3 - Copy | Excel]
+ 
