@@ -1,0 +1,1976 @@
+' ============================================================================
+' MUFG SOLD FILE BUILDER - single-module build
+' All six modules merged into one. Functionally identical to the split version.
+' Module-level declarations are hoisted to the top, as VBA requires.
+' ============================================================================
+Option Explicit
+
+' ---- declarations from modSoldConfig ----
+'==============================================================================
+' modSoldConfig  -  Configuration store for the MUFG SOLD FILE builder
+'
+' All layout-specific values (column letters, sheet names, field names, paths)
+' live on the CONFIG sheet of this macro workbook so that nothing has to be
+' hard-coded in code when the SOLD file layout changes.
+'
+' Author : Automation - Sharan Shah
+' Depends: modSoldUtil
+'==============================================================================
+Public Const CFG_SHEET As String = "CONFIG"
+'--- Ensure the CONFIG sheet exists and is populated with defaults -----------
+
+' ---- declarations from modSoldUtil ----
+'==============================================================================
+' modSoldUtil  -  Shared helpers for the MUFG SOLD FILE builder
+'==============================================================================
+'--- Sheets ------------------------------------------------------------------
+
+' ---- declarations from modSoldMain ----
+'==============================================================================
+' modSoldMain  -  Control panel, state machine and log for the SOLD FILE build
+'
+' The process is broken into 9 stages. Stage 3 is performed by the user inside
+' SAP; the macro parks itself, tells the user exactly what to do, and picks the
+' process back up from the same point when the user returns to this workbook
+' and presses RUN NEXT STEP again. The stage marker is stored on the STATE
+' sheet, so the position survives closing and re-opening the macro file.
+'==============================================================================
+Public Const STATE_SHEET As String = "STATE"
+Public Const LOG_SHEET   As String = "LOG"
+Public Const PANEL_SHEET As String = "CONTROL PANEL"
+Public Const STAGE_COUNT As Long = 9
+'==============================================================================
+' PUBLIC ENTRY POINTS
+'==============================================================================
+'--- One-time / anytime: rebuild the control panel ---------------------------
+
+' ---- declarations from modSoldBuild ----
+'==============================================================================
+' modSoldBuild  -  Stages 1 to 3   (SOP steps 1 to 6)
+'==============================================================================
+'==============================================================================
+' STAGE 1  -  SOP Step 1
+' Save a copy of the Funding File as this week's SOLD FILE and open it.
+'==============================================================================
+
+' ---- declarations from modSoldSAP ----
+'==============================================================================
+' modSoldSAP  -  Stages 4 to 7   (SOP steps 7 to 19)
+'
+' Stage 4 is the hand-off to SAP. The macro does not drive SAP GUI here - it
+' parks the process, prints the exact FBL5N steps on a sheet and in a message
+' box, and returns control to the user. When the user comes back to the macro
+' workbook and presses RUN NEXT STEP, the process resumes at Stage 5.
+'==============================================================================
+Public Const SAP_SHEET As String = "SAP STEPS"
+'--- TRUE when text dates in the source file are day-first --------------------
+
+' ---- declarations from modSoldOutput ----
+'==============================================================================
+' modSoldOutput  -  Stages 8 and 9   (SOP steps 20 to 27)
+'==============================================================================
+'==============================================================================
+' STAGE 8  -  SOP Steps 20 to 23
+' Create the LSMW sheet, bring the headers over from last week, paste the
+' AE:AI block and the Ref Key 1 values.
+'==============================================================================
+
+' ----------------------------------------------------------------------------
+' ---- modSoldConfig ----
+' ----------------------------------------------------------------------------
+Public Sub EnsureConfigSheet()
+    Dim ws As Worksheet
+    Set ws = SoldUtil_GetOrCreateSheet(ThisWorkbook, CFG_SHEET)
+
+    If UCase$(Trim$(CStr(ws.Range("A1").value))) <> "KEY" Then
+        ws.Cells.Clear
+        ws.Range("A1").value = "KEY"
+        ws.Range("B1").value = "VALUE"
+        ws.Range("C1").value = "NOTES"
+        ws.Range("A1:C1").Font.Bold = True
+        ws.Range("A1:C1").Interior.Color = RGB(31, 56, 100)
+        ws.Range("A1:C1").Font.Color = vbWhite
+        ' Values are written as TEXT. Without this, Excel turns "1:4" into a
+        ' time serial and "AV6:AW11" style settings become unreadable.
+        ws.Columns("B").NumberFormat = "@"
+        WriteDefaults ws
+        ws.Columns("A:C").AutoFit
+    End If
+End Sub
+
+Private Sub WriteDefaults(ws As Worksheet)
+    Dim r As Long
+    r = 2
+
+    r = PutDef(ws, r, "FUNDING_FILE_PATH", "", "Source Funding File. Blank = macro will prompt.")
+    r = PutDef(ws, r, "PREV_SOLD_PATH", "", "Last week's SOLD FILE. Blank = macro will prompt.")
+    r = PutDef(ws, r, "CURRENT_SOLD_PATH", "", "Filled in automatically by Step 1.")
+    r = PutDef(ws, r, "SAP_EXPORT_PATH", "", "FBL5N export. Blank = macro will prompt.")
+    r = PutDef(ws, r, "OUTPUT_FOLDER", "", "Where the new SOLD FILE is saved. Blank = same folder as Funding File.")
+    r = PutDef(ws, r, "FILE_NAME_PATTERN", "MUFG SOLD FILE {MMMM} {YYYY}", "{MMMM} month name, {MM} month no., {DD} day, {YYYY} year, {WK} ISO week.")
+
+    r = PutDef(ws, r, "DATA_SHEET_NAME", "DATA", "Working sheet inside the SOLD FILE.")
+    r = PutDef(ws, r, "RENAME_FUNDING_SHEET", "TRUE", "TRUE = rename the Funding File's first sheet to DATA_SHEET_NAME in Step 1.")
+    r = PutDef(ws, r, "ROWS_TO_INSERT", "4", "Step 2 - rows inserted above the data.")
+    r = PutDef(ws, r, "HEADER_ROW", "5", "Row that holds the headers after the insert.")
+    r = PutDef(ws, r, "FIRST_DATA_ROW", "6", "First row of data.")
+    r = PutDef(ws, r, "LAST_HEADER_COL", "AT", "Headers are copied A to this column (Step 3).")
+
+    r = PutDef(ws, r, "ORANGE_ROWS", "1:4", "The four rows above the headers that carry the orange section.")
+    r = PutDef(ws, r, "COPY_ORANGE_BANNER", "TRUE", "TRUE = copy rows 1:4 (A:AT) across from last week's file before the headers.")
+    r = PutDef(ws, r, "FORMULA_COLS", "AO,AP,AQ,AR,AS,AT", "Step 4 - the derived block. AUTO = detect from fills + formulas instead.")
+    r = PutDef(ws, r, "AUX_FORMULA_RANGE", "AV6:AW11", "Step 5 - side block. Sample has labels in AV and amounts in AW.")
+
+    r = PutDef(ws, r, "INVOICE_ID_COL", "X", "Step 6 - Invoice ID / document number column.")
+    r = PutDef(ws, r, "COMPANY_CODE", "1091", "FBL5N company code (Step 8).")
+    r = PutDef(ws, r, "SAP_LAYOUT", "/MUFG SLD JE", "FBL5N layout name (Step 11).")
+
+    r = PutDef(ws, r, "SAP_PASTE_CELL", "AA6", "Step 14 - top-left cell for the SAP block.")
+    r = PutDef(ws, r, "SAP_COPY_COLS", "A:N", "Step 13 - columns copied out of the export.")
+    r = PutDef(ws, r, "DROP_LAST_EXPORT_ROW", "TRUE", "TRUE = always discard the final row of the SAP extract (the total line).")
+    r = PutDef(ws, r, "CONFIRM_SAP_BLOCK", "FALSE", "TRUE = ask you to confirm the first/last data row of the extract.")
+    r = PutDef(ws, r, "SAP_DOCNO_COL", "E", "Doc-number column INSIDE the SAP export. AA:AN maps to A:N, so Document Number is E.")
+    r = PutDef(ws, r, "DOC_CHECK_COL", "AT", "Step 15 - DOC CHECK column.")
+    r = PutDef(ws, r, "DOC_CHECK_OK_VALUES", "-|0|OK|TRUE", "Pipe separated. Blank also passes. Anything else in DOC CHECK is flagged red.")
+
+    r = PutDef(ws, r, "NET_DUE_DATE_COL", "AJ", "Step 16 - Net Due Date.")
+    r = PutDef(ws, r, "DOC_DATE_COL", "AK", "Step 16 - Document Date.")
+    r = PutDef(ws, r, "DATE_FORMAT_OUT", "mm/dd/yyyy", "Display format applied to the repaired date columns.")
+    r = PutDef(ws, r, "SOURCE_DATE_ORDER", "MDY", "How to read TEXT dates in the source. MDY (3/14/2026) or DMY (14/3/2026).")
+    r = PutDef(ws, r, "TEXT_COLS", "AUTO", "Step 17. AUTO = any column carrying a Convert-to-Text error flag. Or list e.g. X,AA,AE")
+    r = PutDef(ws, r, "TEXT_SCAN_COLS", "AA:AN", "Range of columns AUTO scans for the error flags.")
+
+    r = PutDef(ws, r, "REPAYMENT_DATE_COL", "M", "Step 18/19 - Repayment Date. Sort key and 2nd half of Ref Key 1.")
+    r = PutDef(ws, r, "TRADE_PAY_DATE_COL", "J", "Trade Payment Date - 1st half of Ref Key 1.")
+    r = PutDef(ws, r, "REF_KEY1_COL", "AO", "Step 19 - Ref Key 1 column.")
+    r = PutDef(ws, r, "REFKEY_PREFIX", "MU ", "Text before the first date. Gives MU 0316-0324.")
+    r = PutDef(ws, r, "REFKEY_SEPARATOR", "-", "Text between the two MMDD blocks.")
+    r = PutDef(ws, r, "REFKEY_SUFFIX", "", "Text after the second date.")
+    r = PutDef(ws, r, "REFKEY_AS_FORMULA", "FALSE", "FALSE = write static text (MU 0306-0324). TRUE = live formula.")
+
+    r = PutDef(ws, r, "LSMW_SHEET_NAME", "LSMW", "Step 20.")
+    r = PutDef(ws, r, "LSMW_SOURCE_COLS", "AE:AI", "Step 22 - block copied from DATA into LSMW.")
+    r = PutDef(ws, r, "LSMW_REFKEY_SRC_COL", "AO", "Step 23 - Ref Key 1 source on DATA.")
+    r = PutDef(ws, r, "LSMW_REFKEY_DEST_HDR", "Ref Key 1", "Header text on LSMW that receives the Ref Key 1 values.")
+    r = PutDef(ws, r, "LSMW_LAST_HDR", "AR Pledg", "Step 22 - paste stops at this header. No trailing full stop on the LSMW sheet.")
+
+    r = PutDef(ws, r, "SUMMARY_SHEET_NAME", "SUMMARY", "Step 27.")
+    r = PutDef(ws, r, "PIVOT_ROW_FIELD", "Repayment Date", "Step 25 - field dragged to Rows.")
+    r = PutDef(ws, r, "PIVOT_VALUE_FIELDS", "Amount in doc. curr. (1019000)|RESERVE 1050302|REPAYMENT AMOUNT 1005243|DISCOUNT|FUNDED AMOUNT", "Step 27 - pipe separated, must match headers EXACTLY.")
+    r = PutDef(ws, r, "PIVOT_NUMBER_FORMAT", "#,##0.00", "Step 27 - comma formatting.")
+End Sub
+
+Private Function PutDef(ws As Worksheet, r As Long, k As String, v As String, n As String) As Long
+    ws.Cells(r, 1).value = k
+    ws.Cells(r, 2).value = v
+    ws.Cells(r, 3).value = n
+    ws.Cells(r, 2).HorizontalAlignment = xlLeft
+    PutDef = r + 1
+End Function
+
+'--- Read a config value -----------------------------------------------------
+Public Function Cfg(ByVal key As String, Optional ByVal defaultValue As String = "") As String
+    Dim ws As Worksheet, f As Range
+    EnsureConfigSheet
+    Set ws = ThisWorkbook.Worksheets(CFG_SHEET)
+    Set f = ws.Columns(1).Find(What:=key, LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
+    If f Is Nothing Then
+        Cfg = defaultValue
+    Else
+        Cfg = Trim$(CStr(f.Offset(0, 1).value))
+        If Len(Cfg) = 0 Then Cfg = defaultValue
+    End If
+End Function
+
+Public Function CfgLong(ByVal key As String, Optional ByVal defaultValue As Long = 0) As Long
+    Dim s As String
+    s = Cfg(key, CStr(defaultValue))
+    If IsNumeric(s) Then CfgLong = CLng(s) Else CfgLong = defaultValue
+End Function
+
+Public Function CfgBool(ByVal key As String, Optional ByVal defaultValue As Boolean = False) As Boolean
+    Dim s As String
+    s = UCase$(Cfg(key, IIf(defaultValue, "TRUE", "FALSE")))
+    CfgBool = (s = "TRUE" Or s = "YES" Or s = "1" Or s = "Y")
+End Function
+
+'--- Write a config value back ----------------------------------------------
+'--- Read an "a:b" row range, surviving a cell Excel turned into a time -------
+Public Sub CfgRowRange(ByVal key As String, ByRef r1 As Long, ByRef r2 As Long)
+    Dim raw As String, parts() As String
+    Dim fallback1 As Long, fallback2 As Long
+
+    fallback1 = 1
+    fallback2 = CfgLong("HEADER_ROW", 5) - 1
+    If fallback2 < fallback1 Then fallback2 = fallback1
+
+    raw = Cfg(key, "")
+    If InStr(raw, ":") > 0 Then
+        parts = Split(raw, ":")
+        If UBound(parts) >= 1 Then
+            If IsNumeric(Trim$(parts(0))) And IsNumeric(Trim$(parts(1))) Then
+                r1 = CLng(Trim$(parts(0)))
+                r2 = CLng(Trim$(parts(1)))
+                If r1 >= 1 And r2 >= r1 Then Exit Sub
+            End If
+        End If
+    End If
+
+    ' unreadable (blank, or Excel coerced it to a time) - derive it instead
+    r1 = fallback1
+    r2 = fallback2
+End Sub
+
+'--- Read an "AA:AN" column span, with a safe fallback -----------------------
+Public Sub CfgColSpan(ByVal key As String, ByVal defaultSpec As String, _
+                      ByRef c1 As Long, ByRef c2 As Long)
+    Dim raw As String, parts() As String
+    raw = Cfg(key, defaultSpec)
+    If InStr(raw, ":") = 0 Then raw = defaultSpec
+    parts = Split(raw, ":")
+    If UBound(parts) < 1 Then parts = Split(defaultSpec, ":")
+    c1 = ColNum(Trim$(parts(0)))
+    c2 = ColNum(Trim$(parts(1)))
+    If c1 = 0 Or c2 = 0 Or c2 < c1 Then
+        parts = Split(defaultSpec, ":")
+        c1 = ColNum(Trim$(parts(0)))
+        c2 = ColNum(Trim$(parts(1)))
+    End If
+End Sub
+
+Public Sub CfgSet(ByVal key As String, ByVal value As String)
+    Dim ws As Worksheet, f As Range, r As Long
+    EnsureConfigSheet
+    Set ws = ThisWorkbook.Worksheets(CFG_SHEET)
+    Set f = ws.Columns(1).Find(What:=key, LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
+    If f Is Nothing Then
+        r = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row + 1
+        ws.Cells(r, 1).value = key
+        ws.Cells(r, 2).NumberFormat = "@"
+        ws.Cells(r, 2).value = value
+    Else
+        f.Offset(0, 1).NumberFormat = "@"
+        f.Offset(0, 1).value = value
+    End If
+End Sub
+
+'--- Validate the settings the process cannot run without --------------------
+Public Function ValidateConfig(ByRef problems As String) As Boolean
+    problems = ""
+    If Len(Cfg("REPAYMENT_DATE_COL")) = 0 Then
+        problems = problems & "- REPAYMENT_DATE_COL is blank." & vbCrLf
+    End If
+    If Len(Cfg("TRADE_PAY_DATE_COL")) = 0 Then
+        problems = problems & "- TRADE_PAY_DATE_COL is blank." & vbCrLf
+    End If
+    If Len(Cfg("DATA_SHEET_NAME")) = 0 Then
+        problems = problems & "- DATA_SHEET_NAME is blank." & vbCrLf
+    End If
+    If CfgLong("HEADER_ROW") <= 0 Or CfgLong("FIRST_DATA_ROW") <= CfgLong("HEADER_ROW") Then
+        problems = problems & "- HEADER_ROW / FIRST_DATA_ROW are inconsistent." & vbCrLf
+    End If
+    ValidateConfig = (Len(problems) = 0)
+End Function
+
+' ----------------------------------------------------------------------------
+' ---- modSoldUtil ----
+' ----------------------------------------------------------------------------
+Public Function SoldUtil_GetOrCreateSheet(wb As Workbook, ByVal shName As String) As Worksheet
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = wb.Worksheets(shName)
+    On Error GoTo 0
+    If ws Is Nothing Then
+        Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+        ws.Name = shName
+    End If
+    Set SoldUtil_GetOrCreateSheet = ws
+End Function
+
+Public Function SoldUtil_SheetExists(wb As Workbook, ByVal shName As String) As Boolean
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = wb.Worksheets(shName)
+    On Error GoTo 0
+    SoldUtil_SheetExists = Not ws Is Nothing
+End Function
+
+'--- Columns -----------------------------------------------------------------
+Public Function ColNum(ByVal colLetter As String) As Long
+    Dim s As String, i As Long, ch As Long, n As Long
+    s = UCase$(Trim$(colLetter))
+    If Len(s) = 0 Or Len(s) > 3 Then Exit Function
+    For i = 1 To Len(s)
+        ch = Asc(Mid$(s, i, 1)) - 64
+        If ch < 1 Or ch > 26 Then ColNum = 0: Exit Function
+        n = n * 26 + ch
+    Next i
+    ColNum = n
+End Function
+
+Public Function ColLtr(ByVal colNumber As Long) As String
+    Dim n As Long, r As Long, s As String
+    n = colNumber
+    Do While n > 0
+        r = ((n - 1) Mod 26)
+        s = Chr$(65 + r) & s
+        n = (n - r - 1) \ 26
+    Loop
+    ColLtr = s
+End Function
+
+'--- Last used row within a specific column ---------------------------------
+Public Function LastRowIn(ws As Worksheet, ByVal colLetter As String) As Long
+    LastRowIn = ws.Cells(ws.Rows.Count, ColNum(colLetter)).End(xlUp).Row
+End Function
+
+'--- Last used row across a span of columns ---------------------------------
+Public Function LastRowSpan(ws As Worksheet, ByVal firstCol As String, ByVal lastCol As String) As Long
+    Dim c As Long, r As Long, mx As Long
+    For c = ColNum(firstCol) To ColNum(lastCol)
+        r = ws.Cells(ws.Rows.Count, c).End(xlUp).Row
+        If r > mx Then mx = r
+    Next c
+    LastRowSpan = mx
+End Function
+
+'--- Find a header cell in the header row -----------------------------------
+Public Function FindHeader(ws As Worksheet, ByVal headerRow As Long, ByVal headerText As String) As Range
+    Dim lastCol As Long, c As Long, v As String
+    lastCol = ws.Cells(headerRow, ws.Columns.Count).End(xlToLeft).Column
+    For c = 1 To lastCol
+        v = Trim$(CStr(ws.Cells(headerRow, c).value))
+        If StrComp(v, Trim$(headerText), vbTextCompare) = 0 Then
+            Set FindHeader = ws.Cells(headerRow, c)
+            Exit Function
+        End If
+    Next c
+    Set FindHeader = Nothing
+End Function
+
+'==============================================================================
+' Robust date parser - deliberately does NOT rely on CDate, so that the macro
+' behaves the same on an Indian regional setting as on a US one.
+' Handles: dd.mm.yyyy  dd/mm/yyyy  dd-mm-yyyy  yyyy-mm-dd  yyyymmdd  ddmmyyyy
+'          and real Excel date serials.
+'==============================================================================
+Public Function ParseAnyDate(ByVal v As Variant, Optional ByVal preferDayFirst As Boolean = True) As Variant
+    Dim s As String, parts() As String, i As Long
+    Dim d As Long, m As Long, y As Long
+    Dim sep As String
+
+    ParseAnyDate = Empty
+    If IsEmpty(v) Then Exit Function
+
+    If IsDate(v) And VarType(v) = vbDate Then
+        ParseAnyDate = CDate(v): Exit Function
+    End If
+
+    If IsNumeric(v) Then
+        Dim n As Double
+        n = CDbl(v)
+        If n > 20000 And n < 60000 Then          ' plausible Excel serial
+            ParseAnyDate = CDate(n): Exit Function
+        End If
+    End If
+
+    s = Trim$(CStr(v))
+    If Len(s) = 0 Then Exit Function
+    s = Replace(s, Chr$(160), " ")
+    s = Trim$(s)
+
+    sep = ""
+    If InStr(s, ".") > 0 Then sep = "."
+    If InStr(s, "/") > 0 Then sep = "/"
+    If InStr(s, "-") > 0 Then sep = "-"
+
+    If sep <> "" Then
+        parts = Split(s, sep)
+        If UBound(parts) <> 2 Then Exit Function
+        For i = 0 To 2
+            parts(i) = Trim$(parts(i))
+            If Not IsNumeric(parts(i)) Then Exit Function
+        Next i
+        If Len(parts(0)) = 4 Then                 ' yyyy-mm-dd
+            y = CLng(parts(0)): m = CLng(parts(1)): d = CLng(parts(2))
+        Else
+            If preferDayFirst Then
+                d = CLng(parts(0)): m = CLng(parts(1)): y = CLng(parts(2))
+            Else
+                m = CLng(parts(0)): d = CLng(parts(1)): y = CLng(parts(2))
+            End If
+            ' self-correct an obvious mm/dd file
+            If m > 12 And d <= 12 Then
+                Dim t As Long: t = d: d = m: m = t
+            End If
+        End If
+    ElseIf Len(s) = 8 And IsNumeric(s) Then
+        If Left$(s, 2) = "19" Or Left$(s, 2) = "20" Then   ' yyyymmdd
+            y = CLng(Left$(s, 4)): m = CLng(Mid$(s, 5, 2)): d = CLng(Right$(s, 2))
+        Else                                               ' ddmmyyyy
+            d = CLng(Left$(s, 2)): m = CLng(Mid$(s, 3, 2)): y = CLng(Right$(s, 4))
+        End If
+    Else
+        Exit Function
+    End If
+
+    If y < 100 Then y = IIf(y < 70, 2000 + y, 1900 + y)
+    If m < 1 Or m > 12 Then Exit Function
+    If d < 1 Or d > 31 Then Exit Function
+
+    On Error Resume Next
+    ParseAnyDate = DateSerial(y, m, d)
+    If Err.Number <> 0 Then ParseAnyDate = Empty: Err.Clear
+    On Error GoTo 0
+End Function
+
+'--- Clipboard (late bound, no reference needed) ----------------------------
+Public Function PutOnClipboard(ByVal txt As String) As Boolean
+    Dim dobj As Object
+    On Error GoTo Fail
+    Set dobj = CreateObject("new:{1C3B4210-F441-11CE-B9EA-00AA006B1A69}")  ' MSForms.DataObject
+    dobj.SetText txt
+    dobj.PutInClipboard
+    PutOnClipboard = True
+    Exit Function
+Fail:
+    PutOnClipboard = False
+End Function
+
+'--- File pickers ------------------------------------------------------------
+Public Function PickWorkbook(ByVal title As String) As String
+    Dim fd As FileDialog
+    Set fd = Application.FileDialog(msoFileDialogFilePicker)
+    With fd
+        .title = title
+        .AllowMultiSelect = False
+        .Filters.Clear
+        .Filters.Add "Excel files", "*.xls; *.xlsx; *.xlsm; *.xlsb; *.csv; *.txt"
+        If .Show = -1 Then PickWorkbook = .SelectedItems(1) Else PickWorkbook = ""
+    End With
+End Function
+
+Public Function PickFolder(ByVal title As String) As String
+    Dim fd As FileDialog
+    Set fd = Application.FileDialog(msoFileDialogFolderPicker)
+    With fd
+        .title = title
+        If .Show = -1 Then PickFolder = .SelectedItems(1) Else PickFolder = ""
+    End With
+End Function
+
+'--- Open a workbook if it is not already open -------------------------------
+Public Function OpenOrGet(ByVal fullPath As String, Optional ByVal readOnlyMode As Boolean = False) As Workbook
+    Dim wb As Workbook, nm As String
+    If Len(Dir$(fullPath)) = 0 Then Err.Raise vbObjectError + 100, , "File not found: " & fullPath
+    nm = Mid$(fullPath, InStrRev(fullPath, "\") + 1)
+    On Error Resume Next
+    Set wb = Application.Workbooks(nm)
+    On Error GoTo 0
+    If wb Is Nothing Then
+        Set wb = Application.Workbooks.Open(Filename:=fullPath, ReadOnly:=readOnlyMode, UpdateLinks:=0)
+    End If
+    Set OpenOrGet = wb
+End Function
+
+'--- Speed toggles -----------------------------------------------------------
+Public Sub FastMode(ByVal onOff As Boolean)
+    With Application
+        .ScreenUpdating = Not onOff
+        .EnableEvents = Not onOff
+        .DisplayAlerts = Not onOff
+        .Calculation = IIf(onOff, xlCalculationManual, xlCalculationAutomatic)
+    End With
+End Sub
+
+'--- Token replacement for the file name pattern -----------------------------
+Public Function ExpandPattern(ByVal pattern As String, ByVal d As Date) As String
+    Dim s As String
+    s = pattern
+    s = Replace(s, "{MMMM}", Format$(d, "mmmm"))
+    s = Replace(s, "{MMM}", Format$(d, "mmm"))
+    s = Replace(s, "{MM}", Format$(d, "mm"))
+    s = Replace(s, "{DD}", Format$(d, "dd"))
+    s = Replace(s, "{YYYY}", Format$(d, "yyyy"))
+    s = Replace(s, "{WK}", Format$(Application.WorksheetFunction.IsoWeekNum(d), "00"))
+    ExpandPattern = s
+End Function
+
+' ----------------------------------------------------------------------------
+' ---- modSoldMain ----
+' ----------------------------------------------------------------------------
+Public Sub SOLD_Setup()
+    EnsureConfigSheet
+    EnsureStateSheet
+    EnsureLogSheet
+    BuildControlPanel
+    ThisWorkbook.Worksheets(PANEL_SHEET).Activate
+    MsgBox "SOLD FILE tool is ready." & vbCrLf & vbCrLf & _
+           "1. Open the CONFIG sheet and fill in REPAYMENT_DATE_COL (and check the other column letters)." & vbCrLf & _
+           "2. Come back to the CONTROL PANEL and press RUN NEXT STEP.", _
+           vbInformation, "SOLD FILE Builder"
+End Sub
+
+'--- The single button the user presses over and over ------------------------
+Public Sub SOLD_RunNextStep()
+    Dim stg As Long, problems As String
+
+    EnsureConfigSheet
+    EnsureStateSheet
+    EnsureLogSheet
+
+    If Not ValidateConfig(problems) Then
+        MsgBox "The CONFIG sheet is not complete yet:" & vbCrLf & vbCrLf & problems, _
+               vbExclamation, "SOLD FILE Builder"
+        ThisWorkbook.Worksheets(CFG_SHEET).Activate
+        Exit Sub
+    End If
+
+    stg = GetStage()
+    If stg >= STAGE_COUNT Then
+        MsgBox "All stages are complete." & vbCrLf & _
+               "Use RESET to start a new week.", vbInformation, "SOLD FILE Builder"
+        Exit Sub
+    End If
+
+    RunStage stg + 1
+End Sub
+
+'--- Re-run the stage that was just completed --------------------------------
+Public Sub SOLD_RepeatLastStep()
+    Dim stg As Long
+    stg = GetStage()
+    If stg < 1 Then
+        MsgBox "Nothing has been run yet.", vbInformation, "SOLD FILE Builder"
+        Exit Sub
+    End If
+    SetStage stg - 1
+    RunStage stg
+End Sub
+
+'--- Start a fresh week ------------------------------------------------------
+Public Sub SOLD_Reset()
+    If MsgBox("Reset the process back to Stage 0?" & vbCrLf & _
+              "File paths on CONFIG are kept; the stage marker and log are cleared.", _
+              vbQuestion + vbYesNo, "SOLD FILE Builder") <> vbYes Then Exit Sub
+    SetStage 0
+    CfgSet "CURRENT_SOLD_PATH", ""
+    CfgSet "SAP_EXPORT_PATH", ""
+    ClearLog
+    RefreshPanel
+    MsgBox "Reset complete.", vbInformation, "SOLD FILE Builder"
+End Sub
+
+'--- Jump to an arbitrary stage (recovery) -----------------------------------
+Public Sub SOLD_GoToStage()
+    Dim s As String, n As Long
+    s = InputBox("Set the stage marker to which completed stage number? (0-" & STAGE_COUNT & ")", _
+                 "SOLD FILE Builder", CStr(GetStage()))
+    If Len(s) = 0 Then Exit Sub
+    If Not IsNumeric(s) Then Exit Sub
+    n = CLng(s)
+    If n < 0 Or n > STAGE_COUNT Then Exit Sub
+    SetStage n
+    RefreshPanel
+End Sub
+
+'==============================================================================
+' STAGE ROUTER
+'==============================================================================
+Private Sub RunStage(ByVal stg As Long)
+    On Error GoTo Fail
+    LogWrite "STAGE " & stg, "START", StageName(stg)
+
+    Select Case stg
+        Case 1: Stage1_CreateSoldFile          ' Step 1
+        Case 2: Stage2_FrameAndFormulas        ' Steps 2-5
+        Case 3: Stage3_DocNumbersToClipboard   ' Step 6
+        Case 4: Stage4_SapInstructions           ' Steps 7-11  (MANUAL)
+        Case 5: Stage5_ImportSapExtract          ' Steps 12-15
+        Case 6: Stage6_CleanUpColumns            ' Steps 16-18
+        Case 7: Stage7_RefKey1                   ' Step 19
+        Case 8: Stage8_BuildLSMW              ' Steps 20-23
+        Case 9: Stage9_BuildSummary           ' Steps 24-27
+    End Select
+
+    SetStage stg
+    LogWrite "STAGE " & stg, "DONE", StageName(stg)
+    RefreshPanel
+    Exit Sub
+
+Fail:
+    FastMode False
+    LogWrite "STAGE " & stg, "ERROR", Err.Number & " - " & Err.Description
+    RefreshPanel
+    MsgBox "Stage " & stg & " (" & StageName(stg) & ") stopped." & vbCrLf & vbCrLf & _
+           Err.Number & " - " & Err.Description & vbCrLf & vbCrLf & _
+           "The stage marker has NOT moved forward. Fix the issue and press RUN NEXT STEP again.", _
+           vbCritical, "SOLD FILE Builder"
+End Sub
+
+Public Function StageName(ByVal stg As Long) As String
+    Select Case stg
+        Case 1: StageName = "Create this week's SOLD FILE from the Funding File"
+        Case 2: StageName = "Insert rows, copy headers, formulas and AV block"
+        Case 3: StageName = "Convert Invoice IDs to text and load the clipboard"
+        Case 4: StageName = "SAP - FBL5N extract  (MANUAL - done by you in SAP)"
+        Case 5: StageName = "Sort by Invoice ID and paste the SAP extract"
+        Case 6: StageName = "Repair date columns, force text, sort by Repayment Date"
+        Case 7: StageName = "Rebuild Ref Key 1 as MU mmdd-mmdd (Trade Pay to Repayment)"
+        Case 8: StageName = "Build the LSMW sheet"
+        Case 9: StageName = "Build the pivot and rename to SUMMARY"
+        Case Else: StageName = "-"
+    End Select
+End Function
+
+Public Function StageSteps(ByVal stg As Long) As String
+    Select Case stg
+        Case 1: StageSteps = "1"
+        Case 2: StageSteps = "2 - 5"
+        Case 3: StageSteps = "6"
+        Case 4: StageSteps = "7 - 11"
+        Case 5: StageSteps = "12 - 15"
+        Case 6: StageSteps = "16 - 18"
+        Case 7: StageSteps = "19"
+        Case 8: StageSteps = "20 - 23"
+        Case 9: StageSteps = "24 - 27"
+        Case Else: StageSteps = ""
+    End Select
+End Function
+
+'==============================================================================
+' STATE
+'==============================================================================
+Public Sub EnsureStateSheet()
+    Dim ws As Worksheet
+    Set ws = SoldUtil_GetOrCreateSheet(ThisWorkbook, STATE_SHEET)
+    If Len(CStr(ws.Range("A1").value)) = 0 Then
+        ws.Range("A1").value = "STAGE_COMPLETED"
+        ws.Range("B1").value = 0
+        ws.Range("A2").value = "LAST_RUN"
+        ws.Range("A3").value = "RUN_BY"
+    End If
+    ws.Visible = xlSheetVeryHidden
+End Sub
+
+Public Function GetStage() As Long
+    Dim ws As Worksheet
+    EnsureStateSheet
+    Set ws = ThisWorkbook.Worksheets(STATE_SHEET)
+    If IsNumeric(ws.Range("B1").value) Then GetStage = CLng(ws.Range("B1").value) Else GetStage = 0
+End Function
+
+Public Sub SetStage(ByVal n As Long)
+    Dim ws As Worksheet
+    EnsureStateSheet
+    Set ws = ThisWorkbook.Worksheets(STATE_SHEET)
+    ws.Range("B1").value = n
+    ws.Range("B2").value = Now
+    ws.Range("B3").value = Environ$("USERNAME")
+    ThisWorkbook.Save
+End Sub
+
+'==============================================================================
+' LOG
+'==============================================================================
+Public Sub EnsureLogSheet()
+    Dim ws As Worksheet
+    Set ws = SoldUtil_GetOrCreateSheet(ThisWorkbook, LOG_SHEET)
+    If UCase$(Trim$(CStr(ws.Range("A1").value))) <> "TIMESTAMP" Then
+        ws.Cells.Clear
+        ws.Range("A1:D1").value = Array("TIMESTAMP", "SOURCE", "RESULT", "DETAIL")
+        ws.Range("A1:D1").Font.Bold = True
+        ws.Range("A1:D1").Interior.Color = RGB(31, 56, 100)
+        ws.Range("A1:D1").Font.Color = vbWhite
+        ws.Columns("A").ColumnWidth = 19
+        ws.Columns("B").ColumnWidth = 12
+        ws.Columns("C").ColumnWidth = 10
+        ws.Columns("D").ColumnWidth = 90
+    End If
+End Sub
+
+Public Sub LogWrite(ByVal src As String, ByVal result As String, ByVal detail As String)
+    Dim ws As Worksheet, r As Long
+    EnsureLogSheet
+    Set ws = ThisWorkbook.Worksheets(LOG_SHEET)
+    r = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row + 1
+    ws.Cells(r, 1).value = Format$(Now, "dd-mm-yyyy hh:nn:ss")
+    ws.Cells(r, 2).value = src
+    ws.Cells(r, 3).value = result
+    ws.Cells(r, 4).value = detail
+    Select Case UCase$(result)
+        Case "ERROR": ws.Cells(r, 3).Font.Color = RGB(192, 0, 0)
+        Case "DONE":  ws.Cells(r, 3).Font.Color = RGB(0, 112, 60)
+        Case "CHECK": ws.Cells(r, 3).Font.Color = RGB(191, 96, 0)
+    End Select
+End Sub
+
+Public Sub ClearLog()
+    Dim ws As Worksheet
+    EnsureLogSheet
+    Set ws = ThisWorkbook.Worksheets(LOG_SHEET)
+    If ws.Cells(ws.Rows.Count, 1).End(xlUp).Row > 1 Then
+        ws.Range("A2:D" & ws.Cells(ws.Rows.Count, 1).End(xlUp).Row).Clear
+    End If
+End Sub
+
+'==============================================================================
+' CONTROL PANEL
+'==============================================================================
+Public Sub BuildControlPanel()
+    Dim ws As Worksheet, i As Long, r As Long
+    Set ws = SoldUtil_GetOrCreateSheet(ThisWorkbook, PANEL_SHEET)
+
+    Application.ScreenUpdating = False
+    On Error Resume Next
+    ws.Shapes.SelectAll
+    On Error GoTo 0
+    Dim shp As Shape
+    For Each shp In ws.Shapes
+        shp.Delete
+    Next shp
+    ws.Cells.Clear
+    ws.Cells.Interior.Color = RGB(248, 249, 251)
+
+    ws.Range("B2").value = "MUFG  SOLD  FILE  BUILDER"
+    ws.Range("B2").Font.Size = 20
+    ws.Range("B2").Font.Bold = True
+    ws.Range("B2").Font.Color = RGB(31, 56, 100)
+    ws.Range("B3").value = "Press RUN NEXT STEP. The tool stops at the SAP stage, tells you what to do, and continues from the same point when you come back."
+    ws.Range("B3").Font.Italic = True
+    ws.Range("B3").Font.Color = RGB(90, 90, 90)
+
+    ws.Range("B5").value = "STAGE"
+    ws.Range("C5").value = "SOP STEPS"
+    ws.Range("D5").value = "WHAT HAPPENS"
+    ws.Range("E5").value = "STATUS"
+    ws.Range("B5:E5").Font.Bold = True
+    ws.Range("B5:E5").Font.Color = vbWhite
+    ws.Range("B5:E5").Interior.Color = RGB(31, 56, 100)
+
+    For i = 1 To STAGE_COUNT
+        r = 5 + i
+        ws.Cells(r, 2).value = i
+        ws.Cells(r, 3).value = StageSteps(i)
+        ws.Cells(r, 4).value = StageName(i)
+        ws.Cells(r, 5).value = ""
+        ws.Range(ws.Cells(r, 2), ws.Cells(r, 5)).Borders.Color = RGB(210, 214, 220)
+    Next i
+
+    ws.Columns("A").ColumnWidth = 2
+    ws.Columns("B").ColumnWidth = 8
+    ws.Columns("C").ColumnWidth = 12
+    ws.Columns("D").ColumnWidth = 66
+    ws.Columns("E").ColumnWidth = 16
+    ws.Range("B5:E" & (5 + STAGE_COUNT)).VerticalAlignment = xlCenter
+
+    AddButton ws, "btnRun", "RUN  NEXT  STEP", "SOLD_RunNextStep", 470, 40, 190, 46, RGB(31, 56, 100)
+    AddButton ws, "btnRepeat", "Repeat last step", "SOLD_RepeatLastStep", 670, 40, 130, 22, RGB(120, 130, 145)
+    AddButton ws, "btnReset", "Reset week", "SOLD_Reset", 670, 64, 130, 22, RGB(150, 70, 40)
+    AddButton ws, "btnCfg", "Open CONFIG", "SOLD_OpenConfig", 470, 92, 92, 22, RGB(120, 130, 145)
+    AddButton ws, "btnLog", "Open LOG", "SOLD_OpenLog", 566, 92, 92, 22, RGB(120, 130, 145)
+    AddButton ws, "btnSAP", "Show SAP steps", "SOLD_ShowSapSteps", 670, 92, 130, 22, RGB(0, 112, 110)
+
+    RefreshPanel
+    Application.ScreenUpdating = True
+End Sub
+
+Private Sub AddButton(ws As Worksheet, ByVal nm As String, ByVal caption As String, _
+                      ByVal macroName As String, ByVal l As Single, ByVal t As Single, _
+                      ByVal w As Single, ByVal h As Single, ByVal clr As Long)
+    Dim s As Shape
+    Set s = ws.Shapes.AddShape(msoShapeRoundedRectangle, l, t, w, h)
+    s.Name = nm
+    s.Fill.ForeColor.RGB = clr
+    s.Line.Visible = msoFalse
+    s.OnAction = macroName
+    With s.TextFrame2.TextRange
+        .Text = caption
+        .Font.Size = IIf(h > 30, 13, 9)
+        .Font.Bold = msoTrue
+        .Font.Fill.ForeColor.RGB = vbWhite
+    End With
+    s.TextFrame2.VerticalAnchor = msoAnchorMiddle
+End Sub
+
+Public Sub RefreshPanel()
+    Dim ws As Worksheet, i As Long, r As Long, stg As Long
+    If Not SoldUtil_SheetExists(ThisWorkbook, PANEL_SHEET) Then Exit Sub
+    Set ws = ThisWorkbook.Worksheets(PANEL_SHEET)
+    stg = GetStage()
+
+    For i = 1 To STAGE_COUNT
+        r = 5 + i
+        If i <= stg Then
+            ws.Cells(r, 5).value = "COMPLETE"
+            ws.Cells(r, 5).Font.Color = RGB(0, 112, 60)
+            ws.Range(ws.Cells(r, 2), ws.Cells(r, 5)).Interior.Color = RGB(233, 245, 238)
+        ElseIf i = stg + 1 Then
+            ws.Cells(r, 5).value = "NEXT  >>"
+            ws.Cells(r, 5).Font.Color = RGB(191, 96, 0)
+            ws.Range(ws.Cells(r, 2), ws.Cells(r, 5)).Interior.Color = RGB(255, 244, 224)
+        Else
+            ws.Cells(r, 5).value = "pending"
+            ws.Cells(r, 5).Font.Color = RGB(140, 140, 140)
+            ws.Range(ws.Cells(r, 2), ws.Cells(r, 5)).Interior.Color = RGB(255, 255, 255)
+        End If
+        ws.Cells(r, 5).Font.Bold = (i = stg + 1)
+    Next i
+
+    ws.Range("B17").value = "Current SOLD FILE:"
+    ws.Range("C17").value = Cfg("CURRENT_SOLD_PATH", "(not created yet)")
+    ws.Range("B18").value = "Previous SOLD FILE:"
+    ws.Range("C18").value = Cfg("PREV_SOLD_PATH", "(not set)")
+    ws.Range("B19").value = "SAP extract:"
+    ws.Range("C19").value = Cfg("SAP_EXPORT_PATH", "(not imported yet)")
+    ws.Range("B17:B19").Font.Bold = True
+    ws.Range("C17:C19").Font.Color = RGB(60, 60, 60)
+End Sub
+
+Public Sub SOLD_OpenConfig()
+    EnsureConfigSheet
+    ThisWorkbook.Worksheets(CFG_SHEET).Activate
+End Sub
+
+Public Sub SOLD_OpenLog()
+    EnsureLogSheet
+    ThisWorkbook.Worksheets(LOG_SHEET).Activate
+End Sub
+
+Public Sub SOLD_ShowSapSteps()
+    ShowSapCard
+End Sub
+
+' ----------------------------------------------------------------------------
+' ---- modSoldBuild ----
+' ----------------------------------------------------------------------------
+Public Sub Stage1_CreateSoldFile()
+    Dim fundPath As String, prevPath As String, outFolder As String
+    Dim newName As String, newPath As String, ext As String
+    Dim wbFund As Workbook
+
+    fundPath = Cfg("FUNDING_FILE_PATH")
+    If Len(fundPath) = 0 Or Len(Dir$(fundPath)) = 0 Then
+        fundPath = PickWorkbook("Select this week's FUNDING FILE")
+        If Len(fundPath) = 0 Then Err.Raise vbObjectError + 1, , "No Funding File selected."
+        CfgSet "FUNDING_FILE_PATH", fundPath
+    End If
+
+    prevPath = Cfg("PREV_SOLD_PATH")
+    If Len(prevPath) = 0 Or Len(Dir$(prevPath)) = 0 Then
+        prevPath = PickWorkbook("Select LAST WEEK'S SOLD FILE (used as the formatting reference)")
+        If Len(prevPath) = 0 Then Err.Raise vbObjectError + 2, , "No previous SOLD FILE selected."
+        CfgSet "PREV_SOLD_PATH", prevPath
+    End If
+
+    outFolder = Cfg("OUTPUT_FOLDER")
+    If Len(outFolder) = 0 Then outFolder = Left$(fundPath, InStrRev(fundPath, "\") - 1)
+    If Right$(outFolder, 1) <> "\" Then outFolder = outFolder & "\"
+
+    newName = ExpandPattern(Cfg("FILE_NAME_PATTERN", "MUFG SOLD FILE {MM}"), Date)
+    newName = InputBox("Confirm the file name for this week's SOLD FILE:", "Step 1 - Save As", newName)
+    If Len(Trim$(newName)) = 0 Then Err.Raise vbObjectError + 3, , "Save As cancelled."
+
+    newPath = outFolder & newName & ".xlsx"
+    If Len(Dir$(newPath)) > 0 Then
+        If MsgBox(newName & ".xlsx already exists in" & vbCrLf & outFolder & vbCrLf & vbCrLf & _
+                  "Overwrite it?", vbQuestion + vbYesNo, "Step 1") <> vbYes Then
+            Err.Raise vbObjectError + 4, , "User declined to overwrite the existing file."
+        End If
+        Kill newPath
+    End If
+
+    FastMode True
+    Set wbFund = OpenOrGet(fundPath, True)
+    wbFund.SaveCopyAs newPath
+    If wbFund.FullName <> ThisWorkbook.FullName Then wbFund.Close SaveChanges:=False
+    FastMode False
+
+    CfgSet "CURRENT_SOLD_PATH", newPath
+    LogWrite "STEP 1", "DONE", "Created " & newPath
+
+    Dim wbNew As Workbook, dataName As String
+    Set wbNew = OpenOrGet(newPath)
+    dataName = Cfg("DATA_SHEET_NAME", "DATA")
+    If CfgBool("RENAME_FUNDING_SHEET", True) Then
+        If Not SoldUtil_SheetExists(wbNew, dataName) Then
+            If wbNew.Worksheets.Count = 1 Then
+                wbNew.Worksheets(1).Name = dataName
+                wbNew.Save
+                LogWrite "STEP 1", "DONE", "Renamed the Funding File sheet to '" & dataName & "'."
+            Else
+                LogWrite "STEP 1", "CHECK", "No '" & dataName & "' sheet and more than one sheet present - rename it manually."
+            End If
+        End If
+    End If
+    wbNew.Activate
+    MsgBox "This week's SOLD FILE has been created and opened:" & vbCrLf & vbCrLf & newPath & vbCrLf & vbCrLf & _
+           "Confirm the DATA sheet name on CONFIG if it is not '" & Cfg("DATA_SHEET_NAME", "DATA") & "', " & _
+           "then press RUN NEXT STEP.", vbInformation, "Step 1 complete"
+End Sub
+
+'==============================================================================
+' STAGE 2  -  SOP Steps 2 to 5
+' Insert 4 rows, copy headers A:AT, copy the orange formula columns and fill
+' down, copy the AV6:AV11 block.
+'==============================================================================
+Public Sub Stage2_FrameAndFormulas()
+    Dim wbCur As Workbook, wbPrev As Workbook
+    Dim wsCur As Worksheet, wsPrev As Worksheet
+    Dim nIns As Long, hdrRow As Long, firstRow As Long, lastCol As Long
+    Dim lastRow As Long, cols() As String, i As Long, c As Long
+    Dim auxRng As String, copied As String
+
+    Set wbCur = CurrentSoldBook()
+    Set wbPrev = PrevSoldBook()
+    Set wsCur = DataSheet(wbCur)
+    Set wsPrev = DataSheet(wbPrev)
+
+    nIns = CfgLong("ROWS_TO_INSERT", 4)
+    hdrRow = CfgLong("HEADER_ROW", 5)
+    firstRow = CfgLong("FIRST_DATA_ROW", 6)
+    lastCol = ColNum(Cfg("LAST_HEADER_COL", "AT"))
+
+    FastMode True
+
+    '--- Step 2: insert rows from the top ------------------------------------
+    If Not AlreadyFramed(wsCur, hdrRow) Then
+        wsCur.Rows("1:" & nIns).Insert Shift:=xlDown, CopyOrigin:=xlFormatFromLeftOrAbove
+        LogWrite "STEP 2", "DONE", nIns & " rows inserted above the data."
+    Else
+        LogWrite "STEP 2", "SKIP", "Rows already inserted - header row " & hdrRow & " is populated."
+    End If
+
+    '--- Step 4 prep: bring the orange banner rows across ---------------------
+    Dim r1 As Long, r2 As Long
+    CfgRowRange "ORANGE_ROWS", r1, r2
+    If CfgBool("COPY_ORANGE_BANNER", True) Then
+        If r2 >= hdrRow Then r2 = hdrRow - 1
+        wsPrev.Range(wsPrev.Cells(r1, 1), wsPrev.Cells(r2, lastCol)).Copy
+        wsCur.Cells(r1, 1).PasteSpecial xlPasteAll
+        Application.CutCopyMode = False
+        LogWrite "STEP 2", "DONE", "Orange banner rows " & r1 & ":" & r2 & _
+                              " copied across (A:" & Cfg("LAST_HEADER_COL", "AT") & ")."
+    End If
+
+    '--- Step 3: copy headers A:AT from the previous SOLD FILE ---------------
+    wsPrev.Range(wsPrev.Cells(hdrRow, 1), wsPrev.Cells(hdrRow, lastCol)).Copy
+    wsCur.Cells(hdrRow, 1).PasteSpecial xlPasteAll
+    Application.CutCopyMode = False
+    LogWrite "STEP 3", "DONE", "Headers copied A:" & Cfg("LAST_HEADER_COL", "AT")
+
+    '--- Step 4: copy the orange formula columns and fill down ---------------
+    lastRow = LastRowSpan(wsCur, "A", "W")
+    If lastRow < firstRow Then lastRow = LastRowSpan(wsCur, "A", Cfg("LAST_HEADER_COL", "AT"))
+    If lastRow < firstRow Then Err.Raise vbObjectError + 10, , "No data rows found on '" & wsCur.Name & "'."
+
+    cols = FormulaColumns(wsPrev, firstRow, lastCol)
+    copied = ""
+    For i = LBound(cols) To UBound(cols)
+        If Len(cols(i)) > 0 Then
+            c = ColNum(cols(i))
+            wsPrev.Cells(firstRow, c).Copy
+            wsCur.Range(wsCur.Cells(firstRow, c), wsCur.Cells(lastRow, c)).PasteSpecial xlPasteFormulas
+            wsPrev.Cells(firstRow, c).Copy
+            wsCur.Range(wsCur.Cells(firstRow, c), wsCur.Cells(lastRow, c)).PasteSpecial xlPasteFormats
+            copied = copied & cols(i) & " "
+        End If
+    Next i
+    Application.CutCopyMode = False
+    LogWrite "STEP 4", "DONE", "Formula columns filled to row " & lastRow & ": " & Trim$(copied)
+
+    '--- Step 5: copy the AV6:AV11 side block --------------------------------
+    auxRng = Cfg("AUX_FORMULA_RANGE", "AV6:AV11")
+    If Len(auxRng) > 0 Then
+        wsPrev.Range(auxRng).Copy
+        wsCur.Range(auxRng).PasteSpecial xlPasteAll
+        Application.CutCopyMode = False
+        LogWrite "STEP 5", "DONE", "Copied " & auxRng
+    End If
+
+    wsCur.Range(wsCur.Cells(hdrRow, 1), wsCur.Cells(hdrRow, lastCol)).Font.Bold = True
+    wbCur.Save
+    FastMode False
+
+    wsCur.Activate
+    wsCur.Cells(hdrRow, 1).Select
+    MsgBox "Steps 2 to 5 complete." & vbCrLf & vbCrLf & _
+           "Header row : " & hdrRow & vbCrLf & _
+           "Data rows  : " & firstRow & " to " & lastRow & vbCrLf & _
+           "Formula cols: " & Trim$(copied) & vbCrLf & vbCrLf & _
+           "Please eyeball the orange section before continuing, then press RUN NEXT STEP.", _
+           vbInformation, "Stage 2 complete"
+End Sub
+
+'--- Decide which columns carry the orange formulas -------------------------
+Private Function FormulaColumns(wsPrev As Worksheet, ByVal firstRow As Long, ByVal lastCol As Long) As String()
+    Dim setting As String, out() As String, n As Long, c As Long
+    Dim r1 As Long, r2 As Long
+    Dim isOrange As Boolean, anyOrange As Boolean, r As Long
+
+    setting = UCase$(Cfg("FORMULA_COLS", "AUTO"))
+    If setting <> "AUTO" And Len(setting) > 0 Then
+        FormulaColumns = Split(Replace(Replace(setting, " ", ""), ";", ","), ",")
+        Exit Function
+    End If
+
+    CfgRowRange "ORANGE_ROWS", r1, r2
+    If r2 >= firstRow Then r2 = firstRow - 2
+    If r2 < r1 Then r2 = r1
+
+    ' Pass 1 - is any column banded in the orange rows at all?
+    For c = 1 To lastCol
+        For r = r1 To r2
+            If wsPrev.Cells(r, c).Interior.ColorIndex <> xlNone Then anyOrange = True: Exit For
+        Next r
+        If anyOrange Then Exit For
+    Next c
+
+    ReDim out(0 To lastCol)
+    n = -1
+    For c = 1 To lastCol
+        isOrange = False
+        If anyOrange Then
+            For r = r1 To r2
+                If wsPrev.Cells(r, c).Interior.ColorIndex <> xlNone Then isOrange = True: Exit For
+            Next r
+        Else
+            isOrange = True                      ' no banding found - fall back to formulas only
+        End If
+        If isOrange And wsPrev.Cells(firstRow, c).HasFormula Then
+            n = n + 1
+            out(n) = ColLtr(c)
+        End If
+    Next c
+
+    If n < 0 Then
+        ReDim out(0 To 0)
+        out(0) = ""
+        LogWrite "STEP 4", "CHECK", "No formula columns detected under the orange section."
+    Else
+        ReDim Preserve out(0 To n)
+    End If
+    FormulaColumns = out
+End Function
+
+Private Function AlreadyFramed(ws As Worksheet, ByVal hdrRow As Long) As Boolean
+    Dim above As Boolean
+    above = (Application.WorksheetFunction.CountA(ws.Rows(1)) = 0)
+    AlreadyFramed = above And (Application.WorksheetFunction.CountA(ws.Rows(hdrRow)) > 0)
+End Function
+
+'==============================================================================
+' STAGE 3  -  SOP Step 6
+' Convert the Invoice ID column to text and push the document numbers to the
+' Windows clipboard, ready for the SAP multiple-selection paste.
+'==============================================================================
+Public Sub Stage3_DocNumbersToClipboard()
+    Dim wb As Workbook, ws As Worksheet
+    Dim invCol As String, c As Long, firstRow As Long, lastRow As Long
+    Dim hdrRow As Long, lastCol As Long
+    Dim r As Long, v As String, sb As String, cnt As Long
+    Dim arr As Variant
+
+    Set wb = CurrentSoldBook()
+    Set ws = DataSheet(wb)
+    invCol = Cfg("INVOICE_ID_COL", "X")
+    c = ColNum(invCol)
+    hdrRow = CfgLong("HEADER_ROW", 5)
+    firstRow = CfgLong("FIRST_DATA_ROW", 6)
+    lastCol = ColNum(Cfg("LAST_HEADER_COL", "AT"))
+    lastRow = LastRowSpan(ws, "A", Cfg("LAST_HEADER_COL", "AT"))
+    If lastRow < firstRow Then Err.Raise vbObjectError + 20, , "No data rows found."
+
+    FastMode True
+    arr = ws.Range(ws.Cells(firstRow, c), ws.Cells(lastRow, c)).value
+
+    ws.Range(ws.Cells(firstRow, c), ws.Cells(lastRow, c)).NumberFormat = "@"
+    For r = 1 To UBound(arr, 1)
+        v = Trim$(CStr(arr(r, 1)))
+        If Len(v) > 0 Then
+            If InStr(v, "E+") > 0 Or InStr(v, "e+") > 0 Then
+                v = Format$(CDbl(arr(r, 1)), "0")
+            End If
+            arr(r, 1) = v
+            sb = sb & v & vbCrLf
+            cnt = cnt + 1
+        Else
+            arr(r, 1) = ""
+        End If
+    Next r
+    ws.Range(ws.Cells(firstRow, c), ws.Cells(lastRow, c)).value = arr
+    ws.Range(ws.Cells(firstRow, c), ws.Cells(lastRow, c)).HorizontalAlignment = xlLeft
+
+    '--- sort smallest to largest on the Invoice ID --------------------------
+    On Error Resume Next
+    ws.AutoFilterMode = False
+    On Error GoTo 0
+    With ws.Sort
+        .SortFields.Clear
+        .SortFields.Add key:=ws.Range(ws.Cells(firstRow, c), ws.Cells(lastRow, c)), _
+                        SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortTextAsNumbers
+        .SetRange ws.Range(ws.Cells(hdrRow, 1), ws.Cells(lastRow, lastCol))
+        .Header = xlYes
+        .Apply
+    End With
+    LogWrite "STEP 6", "DONE", "Sorted " & (lastRow - firstRow + 1) & _
+                         " rows ascending on column " & invCol & " before copying."
+
+    '--- rebuild the clipboard string FROM THE SORTED ORDER ------------------
+    sb = ""
+    cnt = 0
+    arr = ws.Range(ws.Cells(firstRow, c), ws.Cells(lastRow, c)).value
+    For r = 1 To UBound(arr, 1)
+        v = Trim$(CStr(arr(r, 1)))
+        If Len(v) > 0 Then
+            sb = sb & v & vbCrLf
+            cnt = cnt + 1
+        End If
+    Next r
+
+    wb.Save
+    FastMode False
+
+    If Not PutOnClipboard(sb) Then
+        LogWrite "STEP 6", "CHECK", "Clipboard load failed - copy column " & invCol & " manually."
+        MsgBox "Column " & invCol & " has been converted to text, but the clipboard could not be loaded." & vbCrLf & _
+               "Select " & invCol & firstRow & ":" & invCol & lastRow & " and press Ctrl+C yourself.", _
+               vbExclamation, "Step 6"
+    Else
+        LogWrite "STEP 6", "DONE", cnt & " document numbers converted to text and copied to the clipboard."
+    End If
+
+    ws.Activate
+    ws.Range(ws.Cells(firstRow, c), ws.Cells(lastRow, c)).Select
+End Sub
+
+'==============================================================================
+' SHARED WORKBOOK / SHEET RESOLVERS
+'==============================================================================
+Public Function CurrentSoldBook() As Workbook
+    Dim p As String
+    p = Cfg("CURRENT_SOLD_PATH")
+    If Len(p) = 0 Then Err.Raise vbObjectError + 30, , "CURRENT_SOLD_PATH is blank - run Stage 1 first."
+    Set CurrentSoldBook = OpenOrGet(p, False)
+End Function
+
+Public Function PrevSoldBook() As Workbook
+    Dim p As String
+    p = Cfg("PREV_SOLD_PATH")
+    If Len(p) = 0 Then
+        p = PickWorkbook("Select LAST WEEK'S SOLD FILE")
+        If Len(p) = 0 Then Err.Raise vbObjectError + 31, , "No previous SOLD FILE selected."
+        CfgSet "PREV_SOLD_PATH", p
+    End If
+    Set PrevSoldBook = OpenOrGet(p, True)
+End Function
+
+Public Function DataSheet(wb As Workbook) As Worksheet
+    Dim nm As String
+    nm = Cfg("DATA_SHEET_NAME", "DATA")
+    If Not SoldUtil_SheetExists(wb, nm) Then
+        Err.Raise vbObjectError + 32, , "Sheet '" & nm & "' was not found in " & wb.Name & _
+                  ". Update DATA_SHEET_NAME on the CONFIG sheet."
+    End If
+    Set DataSheet = wb.Worksheets(nm)
+End Function
+
+' ----------------------------------------------------------------------------
+' ---- modSoldSAP ----
+' ----------------------------------------------------------------------------
+Private Function DayFirst() As Boolean
+    DayFirst = (UCase$(Cfg("SOURCE_DATE_ORDER", "MDY")) = "DMY")
+End Function
+
+'==============================================================================
+' STAGE 4  -  SOP Steps 7 to 11   (MANUAL, performed in SAP)
+'==============================================================================
+Public Sub Stage4_SapInstructions()
+    ShowSapCard
+    LogWrite "STEP 7-11", "DONE", "SAP instructions issued - waiting for the user's FBL5N extract."
+
+    MsgBox "SAP STAGE - this part is done by you, in SAP." & vbCrLf & vbCrLf & _
+           "The document numbers are already on your clipboard from Step 6." & vbCrLf & vbCrLf & _
+           "  7.  Run transaction FBL5N" & vbCrLf & _
+           "  8.  Clear the Customer account field. Company code = " & Cfg("COMPANY_CODE", "1091") & _
+           ". Click Dynamic Selections." & vbCrLf & _
+           "  9.  Click Multiple Selection against the Document Number field" & vbCrLf & _
+           " 10.  Paste from Clipboard, then choose All Items" & vbCrLf & _
+           " 11.  Apply layout " & Cfg("SAP_LAYOUT", "/MUFG SLD JE") & vbCrLf & _
+           "        then export the list to Excel and save it." & vbCrLf & vbCrLf & _
+           "The full list is also on the '" & SAP_SHEET & "' sheet for reference." & vbCrLf & vbCrLf & _
+           "WHEN THE EXPORT IS SAVED: come back to this macro file, open the CONTROL PANEL " & _
+           "and press RUN NEXT STEP. The process will continue from Step 12.", _
+           vbInformation, "Stage 4 - over to SAP"
+
+    ThisWorkbook.Worksheets(SAP_SHEET).Activate
+End Sub
+
+Public Sub ShowSapCard()
+    Dim ws As Worksheet, r As Long
+    Set ws = SoldUtil_GetOrCreateSheet(ThisWorkbook, SAP_SHEET)
+    ws.Cells.Clear
+    ws.Cells.Interior.Color = RGB(248, 249, 251)
+
+    ws.Range("B2").value = "SAP  -  FBL5N  EXTRACT   (SOP steps 7 to 11)"
+    ws.Range("B2").Font.Size = 16
+    ws.Range("B2").Font.Bold = True
+    ws.Range("B2").Font.Color = RGB(0, 112, 110)
+
+    ws.Range("B3").value = "Do these in SAP, save the export, then return to the CONTROL PANEL and press RUN NEXT STEP."
+    ws.Range("B3").Font.Italic = True
+
+    r = 5
+    r = SapLine(ws, r, "7", "Run transaction FBL5N (Customer Line Item Display).")
+    r = SapLine(ws, r, "8", "Clear the Customer account field. Set Company code = " & _
+                            Cfg("COMPANY_CODE", "1091") & ". Click Dynamic Selections.")
+    r = SapLine(ws, r, "9", "Click the Multiple Selection arrow against the Document Number field.")
+    r = SapLine(ws, r, "10", "Use Upload from Clipboard to paste the document numbers, then select All Items.")
+    r = SapLine(ws, r, "11", "Execute, then apply layout " & Cfg("SAP_LAYOUT", "/MUFG SLD JE") & ".")
+    r = SapLine(ws, r, "->", "Export the list to a spreadsheet and save it somewhere you can find it.")
+    r = SapLine(ws, r, "->", "Return to this workbook, CONTROL PANEL, press RUN NEXT STEP.")
+
+    ws.Columns("A").ColumnWidth = 2
+    ws.Columns("B").ColumnWidth = 6
+    ws.Columns("C").ColumnWidth = 100
+    ws.Range("C5:C" & r).WrapText = True
+End Sub
+
+Private Function SapLine(ws As Worksheet, ByVal r As Long, ByVal n As String, ByVal txt As String) As Long
+    ws.Cells(r, 2).value = n
+    ws.Cells(r, 2).Font.Bold = True
+    ws.Cells(r, 2).Font.Color = RGB(0, 112, 110)
+    ws.Cells(r, 3).value = txt
+    ws.Cells(r, 2).VerticalAlignment = xlTop
+    ws.Cells(r, 3).VerticalAlignment = xlTop
+    SapLine = r + 2
+End Function
+
+'==============================================================================
+' STAGE 5  -  SOP Steps 12 to 15
+' Sort the SOLD file by Invoice ID, import the SAP extract into AA6 and report
+' on the DOC CHECK column.
+'==============================================================================
+Public Sub Stage5_ImportSapExtract()
+    Dim wb As Workbook, ws As Worksheet
+    Dim wbSap As Workbook, wsSap As Worksheet
+    Dim sapPath As String
+    Dim hdrRow As Long, firstRow As Long, lastRow As Long, lastCol As Long
+    Dim invCol As Long, pasteCell As String, pasteRow As Long, pasteCol As Long
+    Dim sapFirst As Long, sapLast As Long, sapDocCol As Long
+    Dim firstSapCol As Long, lastSapCol As Long, colsSpec As String
+    Dim nSold As Long, nSap As Long
+
+    Set wb = CurrentSoldBook()
+    Set ws = DataSheet(wb)
+
+    hdrRow = CfgLong("HEADER_ROW", 5)
+    firstRow = CfgLong("FIRST_DATA_ROW", 6)
+    lastCol = ColNum(Cfg("LAST_HEADER_COL", "AT"))
+    invCol = ColNum(Cfg("INVOICE_ID_COL", "X"))
+    lastRow = LastRowSpan(ws, "A", "W")
+    If lastRow < firstRow Then Err.Raise vbObjectError + 40, , "No data rows found on the SOLD FILE."
+    nSold = lastRow - firstRow + 1
+
+    '--- Step 12: filter + sort the SOLD data by Invoice ID ------------------
+    FastMode True
+    On Error Resume Next
+    ws.AutoFilterMode = False
+    On Error GoTo 0
+    ws.Range(ws.Cells(hdrRow, 1), ws.Cells(lastRow, lastCol)).AutoFilter
+
+    With ws.Sort
+        .SortFields.Clear
+        .SortFields.Add key:=ws.Range(ws.Cells(firstRow, invCol), ws.Cells(lastRow, invCol)), _
+                        SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortTextAsNumbers
+        .SetRange ws.Range(ws.Cells(hdrRow, 1), ws.Cells(lastRow, lastCol))
+        .Header = xlYes
+        .Apply
+    End With
+    FastMode False
+    LogWrite "STEP 12", "DONE", "Sorted " & nSold & " rows ascending on column " & _
+                          Cfg("INVOICE_ID_COL", "X")
+
+    '--- Step 13: locate and open the SAP export -----------------------------
+    sapPath = Cfg("SAP_EXPORT_PATH")
+    If Len(sapPath) = 0 Or Len(Dir$(sapPath)) = 0 Then
+        sapPath = PickWorkbook("Select the FBL5N export you just saved from SAP")
+        If Len(sapPath) = 0 Then Err.Raise vbObjectError + 41, , "No SAP export selected."
+        CfgSet "SAP_EXPORT_PATH", sapPath
+    End If
+
+    Set wbSap = OpenOrGet(sapPath, True)
+    Set wsSap = wbSap.Worksheets(1)
+
+    colsSpec = Cfg("SAP_COPY_COLS", "A:N")
+    CfgColSpan "SAP_COPY_COLS", "A:N", firstSapCol, lastSapCol
+    sapDocCol = ColNum(Cfg("SAP_DOCNO_COL", "A"))
+
+    GuessSapBlock wsSap, sapDocCol, sapFirst, sapLast
+
+    If CfgBool("CONFIRM_SAP_BLOCK", False) Then
+        sapFirst = AskLong("SAP EXPORT - first DATA row (headers excluded)", sapFirst)
+        sapLast = AskLong("SAP EXPORT - last DATA row (total row excluded)", sapLast)
+    End If
+    If sapLast < sapFirst Then Err.Raise vbObjectError + 42, , "The SAP data block is empty."
+    nSap = sapLast - sapFirst + 1
+    LogWrite "STEP 13", "DONE", "Extract data block taken as rows " & sapFirst & _
+                         " to " & sapLast & " (" & nSap & " rows); total line discarded."
+
+    '--- sort the extract on document number so the two blocks line up -------
+    With wsSap.Sort
+        .SortFields.Clear
+        .SortFields.Add key:=wsSap.Range(wsSap.Cells(sapFirst, sapDocCol), wsSap.Cells(sapLast, sapDocCol)), _
+                        SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortTextAsNumbers
+        .SetRange wsSap.Range(wsSap.Cells(sapFirst, firstSapCol), wsSap.Cells(sapLast, lastSapCol))
+        .Header = xlNo
+        .Apply
+    End With
+
+    If nSap <> nSold Then
+        If MsgBox("Row count mismatch." & vbCrLf & vbCrLf & _
+                  "SOLD FILE data rows : " & nSold & vbCrLf & _
+                  "SAP extract rows    : " & nSap & vbCrLf & vbCrLf & _
+                  "The two blocks will not line up row for row and DOC CHECK will show differences." & vbCrLf & _
+                  "Paste anyway?", vbExclamation + vbYesNo, "Step 14") <> vbYes Then
+            Err.Raise vbObjectError + 43, , "Paste cancelled - row counts did not match (" & nSold & " vs " & nSap & ")."
+        End If
+        LogWrite "STEP 14", "CHECK", "Row count mismatch: SOLD " & nSold & " vs SAP " & nSap
+    End If
+
+    '--- Step 14: paste values into AA6 --------------------------------------
+    pasteCell = Cfg("SAP_PASTE_CELL", "AA6")
+    pasteRow = ws.Range(pasteCell).Row
+    pasteCol = ws.Range(pasteCell).Column
+
+    FastMode True
+    ws.Range(ws.Cells(pasteRow, pasteCol), _
+             ws.Cells(pasteRow + nSap - 1, pasteCol + (lastSapCol - firstSapCol))).Clear
+    wsSap.Range(wsSap.Cells(sapFirst, firstSapCol), wsSap.Cells(sapLast, lastSapCol)).Copy _
+        Destination:=ws.Cells(pasteRow, pasteCol)
+    Application.CutCopyMode = False
+    FastMode False
+
+    wbSap.Close SaveChanges:=False
+    LogWrite "STEP 13-14", "DONE", nSap & " SAP rows pasted at " & pasteCell & " (" & colsSpec & ")"
+
+    '--- Step 15: DOC CHECK ---------------------------------------------------
+    Dim flagged As Long
+    flagged = ReportDocCheck(ws, hdrRow, firstRow, lastRow)
+
+    wb.Save
+    ws.Activate
+    ws.Range(pasteCell).Select
+
+    If flagged = 0 Then
+        MsgBox "Steps 12 to 15 complete." & vbCrLf & vbCrLf & _
+               "DOC CHECK is clean - no differences found across " & nSold & " rows.", _
+               vbInformation, "Stage 5 complete"
+    Else
+        MsgBox "Steps 12 to 15 complete." & vbCrLf & vbCrLf & _
+               "DOC CHECK has flagged " & flagged & " row(s). They are highlighted in red in column " & _
+               Cfg("DOC_CHECK_COL", "AT") & "." & vbCrLf & vbCrLf & _
+               "Investigate these before you continue. Press RUN NEXT STEP when you are satisfied.", _
+               vbExclamation, "Stage 5 - DOC CHECK differences"
+    End If
+End Sub
+
+'--- Guess where the real data starts and ends in an SAP export --------------
+Private Sub GuessSapBlock(wsSap As Worksheet, ByVal docCol As Long, _
+                          ByRef firstRow As Long, ByRef lastRow As Long)
+    Dim r As Long, lastUsed As Long, v As String
+    lastUsed = wsSap.Cells(wsSap.Rows.Count, docCol).End(xlUp).Row
+
+    firstRow = 0
+    For r = 1 To lastUsed
+        v = Trim$(CStr(wsSap.Cells(r, docCol).value))
+        If Len(v) > 0 And IsNumeric(Replace(v, " ", "")) Then
+            firstRow = r
+            Exit For
+        End If
+    Next r
+    If firstRow = 0 Then firstRow = 2
+
+    lastRow = lastUsed
+
+    ' the final populated row of an FBL5N extract is the total line
+    If CfgBool("DROP_LAST_EXPORT_ROW", True) Then lastRow = lastRow - 1
+
+    ' then trim anything else at the bottom that is not a document number
+    Do While lastRow >= firstRow
+        v = UCase$(Trim$(CStr(wsSap.Cells(lastRow, docCol).value)))
+        If Len(v) > 0 And IsNumeric(Replace(v, " ", "")) And InStr(v, "TOTAL") = 0 And InStr(v, "*") = 0 Then Exit Do
+        lastRow = lastRow - 1
+    Loop
+End Sub
+
+Private Function AskLong(ByVal prompt As String, ByVal suggested As Long) As Long
+    Dim s As String
+    s = InputBox(prompt, "SOLD FILE Builder", CStr(suggested))
+    If Len(s) = 0 Then Err.Raise vbObjectError + 44, , "Cancelled at: " & prompt
+    If Not IsNumeric(s) Then Err.Raise vbObjectError + 45, , "Not a row number: " & s
+    AskLong = CLng(s)
+End Function
+
+'--- Step 15 helper: evaluate the DOC CHECK column ---------------------------
+Private Function ReportDocCheck(ws As Worksheet, ByVal hdrRow As Long, _
+                                ByVal firstRow As Long, ByVal lastRow As Long) As Long
+    Dim dcCol As Long, r As Long, v As String, okList As String, flagged As Long
+    Dim rng As Range
+
+    dcCol = ColNum(Cfg("DOC_CHECK_COL", "AT"))
+    okList = "|" & UCase$(Cfg("DOC_CHECK_OK_VALUES", "OK|TRUE|MATCH|0|-|YES")) & "|"
+
+    Set rng = ws.Range(ws.Cells(firstRow, dcCol), ws.Cells(lastRow, dcCol))
+    rng.Interior.pattern = xlNone
+    Application.Calculate
+
+    For r = firstRow To lastRow
+        v = UCase$(Trim$(CStr(ws.Cells(r, dcCol).Text)))
+        If Len(v) > 0 Then
+            If InStr(okList, "|" & v & "|") = 0 Then
+                ws.Cells(r, dcCol).Interior.Color = RGB(255, 199, 206)
+                ws.Cells(r, dcCol).Font.Color = RGB(156, 0, 6)
+                flagged = flagged + 1
+            End If
+        End If
+    Next r
+
+    LogWrite "STEP 15", IIf(flagged = 0, "DONE", "CHECK"), _
+                         "DOC CHECK flagged " & flagged & " of " & (lastRow - firstRow + 1) & " rows."
+    ReportDocCheck = flagged
+End Function
+
+'==============================================================================
+' STAGE 6  -  SOP Steps 16 to 18
+' Repair the Net Due Date / Document Date columns, force the nominated columns
+' to text, then sort oldest to newest on Repayment Date.
+'==============================================================================
+Public Sub Stage6_CleanUpColumns()
+    Dim wb As Workbook, ws As Worksheet
+    Dim hdrRow As Long, firstRow As Long, lastRow As Long, lastCol As Long
+    Dim fixedA As Long, fixedB As Long, badA As Long, badB As Long
+    Dim textCols() As String, i As Long, txtDone As String
+    Dim repCol As Long
+
+    Set wb = CurrentSoldBook()
+    Set ws = DataSheet(wb)
+    hdrRow = CfgLong("HEADER_ROW", 5)
+    firstRow = CfgLong("FIRST_DATA_ROW", 6)
+    lastCol = ColNum(Cfg("LAST_HEADER_COL", "AT"))
+    lastRow = LastRowSpan(ws, "A", Cfg("LAST_HEADER_COL", "AT"))
+
+    FastMode True
+
+    '--- Step 16: date columns ------------------------------------------------
+    fixedA = RepairDateColumn(ws, Cfg("NET_DUE_DATE_COL", "AJ"), firstRow, lastRow, badA)
+    fixedB = RepairDateColumn(ws, Cfg("DOC_DATE_COL", "AK"), firstRow, lastRow, badB)
+    LogWrite "STEP 16", IIf(badA + badB = 0, "DONE", "CHECK"), _
+        "Net Due Date fixed " & fixedA & " (unparsed " & badA & "); Document Date fixed " & fixedB & _
+        " (unparsed " & badB & ")"
+
+    '--- Step 17: force columns to text --------------------------------------
+    Dim spec As String
+    spec = Cfg("TEXT_COLS", "AUTO")
+    If UCase$(Trim$(spec)) = "AUTO" Then
+        spec = DetectTextErrorCols(ws, Cfg("TEXT_SCAN_COLS", "AA:AN"), firstRow, lastRow)
+        LogWrite "STEP 17", "DONE", "AUTO scan of " & Cfg("TEXT_SCAN_COLS", "AA:AN") & _
+                             " found error flags in: " & IIf(Len(spec) = 0, "(none)", spec)
+    End If
+    textCols = Split(Replace(Replace(spec, " ", ""), ";", ","), ",")
+    For i = LBound(textCols) To UBound(textCols)
+        If Len(textCols(i)) > 0 Then
+            ForceColumnToText ws, textCols(i), firstRow, lastRow
+            txtDone = txtDone & textCols(i) & " "
+        End If
+    Next i
+    LogWrite "STEP 17", IIf(Len(txtDone) = 0, "SKIP", "DONE"), _
+        IIf(Len(txtDone) = 0, "TEXT_COLS is blank on CONFIG - nothing converted.", "Forced to text: " & Trim$(txtDone))
+
+    '--- Step 18: sort oldest to newest on Repayment Date --------------------
+    repCol = ColNum(Cfg("REPAYMENT_DATE_COL"))
+    If repCol = 0 Then Err.Raise vbObjectError + 50, , "REPAYMENT_DATE_COL is not set on the CONFIG sheet."
+    NormaliseDateColumn ws, Cfg("REPAYMENT_DATE_COL"), firstRow, lastRow
+
+    With ws.Sort
+        .SortFields.Clear
+        .SortFields.Add key:=ws.Range(ws.Cells(firstRow, repCol), ws.Cells(lastRow, repCol)), _
+                        SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+        .SetRange ws.Range(ws.Cells(hdrRow, 1), ws.Cells(lastRow, lastCol))
+        .Header = xlYes
+        .Apply
+    End With
+    LogWrite "STEP 18", "DONE", "Sorted oldest to newest on column " & Cfg("REPAYMENT_DATE_COL")
+
+    wb.Save
+    FastMode False
+    ws.Activate
+
+    MsgBox "Steps 16 to 18 complete." & vbCrLf & vbCrLf & _
+           "Net Due Date repaired : " & fixedA & IIf(badA > 0, "  (" & badA & " could not be parsed)", "") & vbCrLf & _
+           "Document Date repaired: " & fixedB & IIf(badB > 0, "  (" & badB & " could not be parsed)", "") & vbCrLf & _
+           "Forced to text        : " & IIf(Len(txtDone) = 0, "none configured", Trim$(txtDone)) & vbCrLf & _
+           "Sorted on             : " & Cfg("REPAYMENT_DATE_COL") & " (oldest first)", _
+           vbInformation, "Stage 6 complete"
+End Sub
+
+'--- Convert a badly formatted column into real dates -----------------------
+Private Function RepairDateColumn(ws As Worksheet, ByVal colLetter As String, _
+                                  ByVal firstRow As Long, ByVal lastRow As Long, _
+                                  ByRef unparsed As Long) As Long
+    Dim c As Long, r As Long, arr As Variant, d As Variant, n As Long
+    unparsed = 0
+    If Len(Trim$(colLetter)) = 0 Then Exit Function
+    c = ColNum(colLetter)
+    If c = 0 Then Exit Function
+
+    arr = ws.Range(ws.Cells(firstRow, c), ws.Cells(lastRow, c)).value
+    For r = 1 To UBound(arr, 1)
+        If Len(Trim$(CStr(arr(r, 1)))) > 0 Then
+            d = ParseAnyDate(arr(r, 1), DayFirst())
+            If IsEmpty(d) Then
+                unparsed = unparsed + 1
+                ws.Cells(firstRow + r - 1, c).Interior.Color = RGB(255, 235, 156)
+            Else
+                arr(r, 1) = CDate(d)
+                n = n + 1
+            End If
+        End If
+    Next r
+
+    With ws.Range(ws.Cells(firstRow, c), ws.Cells(lastRow, c))
+        .NumberFormat = Cfg("DATE_FORMAT_OUT", "dd-mm-yyyy")
+        .value = arr
+        .HorizontalAlignment = xlCenter
+    End With
+    RepairDateColumn = n
+End Function
+
+Private Sub NormaliseDateColumn(ws As Worksheet, ByVal colLetter As String, _
+                                ByVal firstRow As Long, ByVal lastRow As Long)
+    Dim dummy As Long
+    RepairDateColumn ws, colLetter, firstRow, lastRow, dummy
+End Sub
+
+'--- Force a column to text values ------------------------------------------
+Private Sub ForceColumnToText(ws As Worksheet, ByVal colLetter As String, _
+                              ByVal firstRow As Long, ByVal lastRow As Long)
+    Dim c As Long, r As Long, arr As Variant, s As String
+    c = ColNum(colLetter)
+    If c = 0 Then Exit Sub
+
+    arr = ws.Range(ws.Cells(firstRow, c), ws.Cells(lastRow, c)).value
+    For r = 1 To UBound(arr, 1)
+        If IsError(arr(r, 1)) Then
+            arr(r, 1) = ""
+        ElseIf IsNumeric(arr(r, 1)) And Not IsEmpty(arr(r, 1)) Then
+            s = Format$(CDbl(arr(r, 1)), "0.##########")
+            arr(r, 1) = s
+        Else
+            arr(r, 1) = Trim$(CStr(arr(r, 1)))
+        End If
+    Next r
+
+    With ws.Range(ws.Cells(firstRow, c), ws.Cells(lastRow, c))
+        .NumberFormat = "@"
+        .value = arr
+        .HorizontalAlignment = xlLeft
+        On Error Resume Next
+        .Errors(xlNumberAsText).Ignore = True
+        .Errors(xlTextDate).Ignore = True
+        On Error GoTo 0
+    End With
+End Sub
+
+'--- Find the columns Excel is flagging with a "convert to text" indicator ---
+Private Function DetectTextErrorCols(ws As Worksheet, ByVal scanSpec As String, _
+                                     ByVal firstRow As Long, ByVal lastRow As Long) As String
+    Dim c1 As Long, c2 As Long, c As Long, r As Long, stopRow As Long
+    Dim hit As Boolean, out As String, skip As String
+
+    If InStr(scanSpec, ":") = 0 Then DetectTextErrorCols = scanSpec: Exit Function
+    c1 = ColNum(Trim$(Split(scanSpec, ":")(0)))
+    c2 = ColNum(Trim$(Split(scanSpec, ":")(1)))
+    If c1 = 0 Or c2 = 0 Then Exit Function
+
+    ' the two date columns were repaired in Step 16 - leave them alone
+    skip = "|" & UCase$(Cfg("NET_DUE_DATE_COL", "AJ")) & "|" & _
+                 UCase$(Cfg("DOC_DATE_COL", "AK")) & "|"
+
+    stopRow = firstRow + 499
+    If stopRow > lastRow Then stopRow = lastRow
+
+    For c = c1 To c2
+        If InStr(skip, "|" & UCase$(ColLtr(c)) & "|") = 0 Then
+            hit = False
+            For r = firstRow To stopRow
+                On Error Resume Next
+                If ws.Cells(r, c).Errors(xlNumberAsText).value Then hit = True
+                If ws.Cells(r, c).Errors(xlTextDate).value Then hit = True
+                On Error GoTo 0
+                If hit Then Exit For
+            Next r
+            If hit Then out = out & ColLtr(c) & ","
+        End If
+    Next c
+
+    If Len(out) > 0 Then out = Left$(out, Len(out) - 1)
+    DetectTextErrorCols = out
+End Function
+
+'==============================================================================
+' STAGE 7  -  SOP Step 19
+' Rebuild Ref Key 1 so that it carries only the 4-digit MMDD of the Repayment
+' Date (plus any configured prefix / suffix).
+'==============================================================================
+Public Sub Stage7_RefKey1()
+    Dim wb As Workbook, ws As Worksheet
+    Dim refCol As Long, repCol As Long, tpCol As Long
+    Dim firstRow As Long, lastRow As Long
+    Dim asFormula As Boolean, pre As String, sep As String, suf As String
+    Dim r As Long, d1 As Variant, d2 As Variant, n As Long, blanks As Long
+    Dim f As String, aTP As String, aRP As String, arr As Variant
+
+    Set wb = CurrentSoldBook()
+    Set ws = DataSheet(wb)
+
+    refCol = ColNum(Cfg("REF_KEY1_COL", "AO"))
+    repCol = ColNum(Cfg("REPAYMENT_DATE_COL", "M"))
+    tpCol = ColNum(Cfg("TRADE_PAY_DATE_COL", "J"))
+    If refCol = 0 Then Err.Raise vbObjectError + 60, , "REF_KEY1_COL is not set."
+    If repCol = 0 Then Err.Raise vbObjectError + 61, , "REPAYMENT_DATE_COL is not set."
+    If tpCol = 0 Then Err.Raise vbObjectError + 62, , "TRADE_PAY_DATE_COL is not set."
+
+    firstRow = CfgLong("FIRST_DATA_ROW", 6)
+    lastRow = LastRowSpan(ws, "A", Cfg("LAST_HEADER_COL", "AT"))
+    asFormula = CfgBool("REFKEY_AS_FORMULA", False)
+    pre = Cfg("REFKEY_PREFIX", "MU ")
+    sep = Cfg("REFKEY_SEPARATOR", "-")
+    suf = Cfg("REFKEY_SUFFIX", "")
+
+    FastMode True
+
+    ' both source columns must be real dates before TEXT() will work
+    Dim badTP As Long, badRP As Long
+    RepairDateColumn ws, Cfg("TRADE_PAY_DATE_COL", "J"), firstRow, lastRow, badTP
+    RepairDateColumn ws, Cfg("REPAYMENT_DATE_COL", "M"), firstRow, lastRow, badRP
+
+    If asFormula Then
+        ' a formula written into a cell already formatted as Text displays as
+        ' the formula string, so the format has to be General here
+        ws.Range(ws.Cells(firstRow, refCol), ws.Cells(lastRow, refCol)).NumberFormat = "General"
+    Else
+        ws.Range(ws.Cells(firstRow, refCol), ws.Cells(lastRow, refCol)).NumberFormat = "@"
+    End If
+
+    If asFormula Then
+        aTP = ColLtr(tpCol) & firstRow
+        aRP = ColLtr(repCol) & firstRow
+        f = "=IF(OR(" & aTP & "=""""," & aRP & "=""""),""""," & _
+            """" & pre & """&TEXT(" & aTP & ",""mmdd"")&""" & sep & """&TEXT(" & aRP & ",""mmdd"")" & _
+            IIf(Len(suf) > 0, "&""" & suf & """", "") & ")"
+        ws.Range(ws.Cells(firstRow, refCol), ws.Cells(lastRow, refCol)).Formula = f
+        Application.Calculate
+        n = Application.WorksheetFunction.CountIf( _
+                ws.Range(ws.Cells(firstRow, refCol), ws.Cells(lastRow, refCol)), "?*")
+        blanks = (lastRow - firstRow + 1) - n
+    Else
+        ReDim arr(1 To lastRow - firstRow + 1, 1 To 1)
+        For r = firstRow To lastRow
+            d1 = ParseAnyDate(ws.Cells(r, tpCol).value, DayFirst())
+            d2 = ParseAnyDate(ws.Cells(r, repCol).value, DayFirst())
+            If IsEmpty(d1) Or IsEmpty(d2) Then
+                arr(r - firstRow + 1, 1) = ""
+                blanks = blanks + 1
+            Else
+                arr(r - firstRow + 1, 1) = pre & Format$(CDate(d1), "mmdd") & sep & _
+                                           Format$(CDate(d2), "mmdd") & suf
+                n = n + 1
+            End If
+        Next r
+        ws.Range(ws.Cells(firstRow, refCol), ws.Cells(lastRow, refCol)).value = arr
+    End If
+
+    ws.Range(ws.Cells(firstRow, refCol), ws.Cells(lastRow, refCol)).HorizontalAlignment = xlLeft
+    wb.Save
+    FastMode False
+
+    LogWrite "STEP 19", IIf(blanks = 0, "DONE", "CHECK"), _
+        "Ref Key 1 = " & pre & "MMDD" & sep & "MMDD" & suf & " from " & _
+        Cfg("TRADE_PAY_DATE_COL", "J") & " and " & _
+        Cfg("REPAYMENT_DATE_COL", "M") & " for " & n & " rows" & _
+        IIf(blanks > 0, "; " & blanks & " blank (a source date was missing)", "") & _
+        IIf(asFormula, " [live formula]", " [static text]")
+
+    ws.Activate
+    ws.Cells(firstRow, refCol).Select
+    MsgBox "Step 19 complete." & vbCrLf & vbCrLf & _
+           "Column " & Cfg("REF_KEY1_COL", "AO") & " now reads e.g.  " & _
+           pre & "0316" & sep & "0324" & suf & vbCrLf & _
+           "  first block  = " & Cfg("TRADE_PAY_DATE_COL", "J") & " (Trade Payment Date)" & vbCrLf & _
+           "  second block = " & Cfg("REPAYMENT_DATE_COL", "M") & " (Repayment Date)" & vbCrLf & vbCrLf & _
+           IIf(blanks > 0, blanks & " row(s) came out blank because a source date was missing." & vbCrLf & vbCrLf, "") & _
+           "Check a few rows, then press RUN NEXT STEP to build the LSMW sheet.", _
+           vbInformation, "Stage 7 complete"
+End Sub
+
+' ----------------------------------------------------------------------------
+' ---- modSoldOutput ----
+' ----------------------------------------------------------------------------
+Public Sub Stage8_BuildLSMW()
+    Dim wb As Workbook, wbPrev As Workbook
+    Dim ws As Worksheet, wsL As Worksheet, wsPrevL As Worksheet
+    Dim lsmwName As String, firstRow As Long, lastRow As Long, nRows As Long
+    Dim srcSpec As String, c1 As Long, c2 As Long, nCols As Long
+    Dim vals As Variant, refVals As Variant
+    Dim refSrcCol As Long, destHdr As String, destCell As Range
+    Dim lastHdrText As String, stopCell As Range
+
+    lsmwName = Cfg("LSMW_SHEET_NAME", "LSMW")
+    Set wb = CurrentSoldBook()
+    Set ws = DataSheet(wb)
+    Set wbPrev = PrevSoldBook()
+
+    If Not SoldUtil_SheetExists(wbPrev, lsmwName) Then
+        Err.Raise vbObjectError + 70, , "Last week's SOLD FILE has no '" & lsmwName & "' sheet to copy headers from."
+    End If
+    Set wsPrevL = wbPrev.Worksheets(lsmwName)
+
+    FastMode True
+
+    '--- Step 20: add the sheet ----------------------------------------------
+    If SoldUtil_SheetExists(wb, lsmwName) Then
+        wb.Worksheets(lsmwName).Cells.Clear
+        Set wsL = wb.Worksheets(lsmwName)
+    Else
+        Set wsL = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+        wsL.Name = lsmwName
+    End If
+
+    '--- Step 21: copy the header row from last week's LSMW sheet ------------
+    wsPrevL.Rows(1).Copy
+    wsL.Rows(1).PasteSpecial xlPasteAll
+    Application.CutCopyMode = False
+    wsL.Rows(1).Font.Bold = True
+
+    '--- Step 22: paste the DATA block (AE:AI by default) --------------------
+    firstRow = CfgLong("FIRST_DATA_ROW", 6)
+    lastRow = LastRowSpan(ws, "A", Cfg("LAST_HEADER_COL", "AT"))
+    nRows = lastRow - firstRow + 1
+    If nRows < 1 Then Err.Raise vbObjectError + 71, , "No data rows found on the DATA sheet."
+
+    srcSpec = Cfg("LSMW_SOURCE_COLS", "AE:AI")
+    CfgColSpan "LSMW_SOURCE_COLS", "AE:AI", c1, c2
+    nCols = c2 - c1 + 1
+
+    lastHdrText = Cfg("LSMW_LAST_HDR", "AR Pledg.")
+    Set stopCell = FindHeader(wsL, 1, lastHdrText)
+    If Not stopCell Is Nothing Then
+        If stopCell.Column <> nCols Then
+            LogWrite "STEP 22", "CHECK", _
+                "'" & lastHdrText & "' sits in LSMW column " & stopCell.Column & _
+                " but " & srcSpec & " is " & nCols & " columns wide. Check LSMW_SOURCE_COLS."
+        End If
+    End If
+
+    vals = ws.Range(ws.Cells(firstRow, c1), ws.Cells(lastRow, c2)).value
+    wsL.Range("A2").Resize(nRows, nCols).value = vals
+
+    '--- Step 23: Ref Key 1 pasted as values ---------------------------------
+    refSrcCol = ColNum(Cfg("LSMW_REFKEY_SRC_COL", "AO"))
+    destHdr = Cfg("LSMW_REFKEY_DEST_HDR", "Ref Key 1")
+    Set destCell = FindHeader(wsL, 1, destHdr)
+    If destCell Is Nothing Then
+        FastMode False
+        Err.Raise vbObjectError + 72, , "Header '" & destHdr & "' was not found on the " & lsmwName & _
+                  " sheet. Update LSMW_REFKEY_DEST_HDR on CONFIG."
+    End If
+
+    refVals = ws.Range(ws.Cells(firstRow, refSrcCol), ws.Cells(lastRow, refSrcCol)).value
+    With wsL.Cells(2, destCell.Column).Resize(nRows, 1)
+        .NumberFormat = "@"
+        .value = refVals
+        .HorizontalAlignment = xlLeft
+    End With
+
+    wsL.Columns.AutoFit
+    wb.Save
+    FastMode False
+
+    LogWrite "STEP 20-23", "DONE", _
+        lsmwName & " built: " & nRows & " rows, " & srcSpec & " pasted to A2, Ref Key 1 into column " & _
+        ColLtr(destCell.Column)
+
+    wsL.Activate
+    wsL.Range("A1").Select
+    MsgBox "Steps 20 to 23 complete." & vbCrLf & vbCrLf & _
+           "Sheet    : " & lsmwName & vbCrLf & _
+           "Rows     : " & nRows & vbCrLf & _
+           "Block    : DATA " & srcSpec & " -> A2" & vbCrLf & _
+           "Ref Key 1: pasted as values into column " & ColLtr(destCell.Column) & vbCrLf & vbCrLf & _
+           "Press RUN NEXT STEP to build the SUMMARY pivot.", vbInformation, "Stage 8 complete"
+End Sub
+
+'==============================================================================
+' STAGE 9  -  SOP Steps 24 to 27
+' Pivot on the DATA range (headers through DOC CHECK, ignoring the top rows),
+' Repayment Date on Rows with grouping removed, the five value fields, comma
+' formatting, sheet renamed to SUMMARY.
+'==============================================================================
+Public Sub Stage9_BuildSummary()
+    Dim wb As Workbook, ws As Worksheet, wsP As Worksheet
+    Dim hdrRow As Long, firstRow As Long, lastRow As Long, lastCol As Long
+    Dim srcRange As Range, pc As PivotCache, pt As PivotTable
+    Dim rowField As String, valSpec As String, fields() As String
+    Dim i As Long, added As Long, missing As String
+    Dim sumName As String, numFmt As String
+    Dim pf As PivotField
+
+    Set wb = CurrentSoldBook()
+    Set ws = DataSheet(wb)
+
+    hdrRow = CfgLong("HEADER_ROW", 5)
+    firstRow = CfgLong("FIRST_DATA_ROW", 6)
+    lastCol = ColNum(Cfg("DOC_CHECK_COL", "AT"))
+    lastRow = LastRowSpan(ws, "A", Cfg("LAST_HEADER_COL", "AT"))
+    sumName = Cfg("SUMMARY_SHEET_NAME", "SUMMARY")
+    numFmt = Cfg("PIVOT_NUMBER_FORMAT", "#,##0.00")
+
+    If lastRow < firstRow Then Err.Raise vbObjectError + 80, , "No data rows found for the pivot."
+
+    CheckBlankHeaders ws, hdrRow, lastCol
+
+    FastMode True
+    On Error Resume Next
+    ws.AutoFilterMode = False
+    On Error GoTo 0
+
+    '--- Step 24: source range = headers to DOC CHECK, top rows excluded -----
+    Set srcRange = ws.Range(ws.Cells(hdrRow, 1), ws.Cells(lastRow, lastCol))
+
+    If SoldUtil_SheetExists(wb, sumName) Then
+        Application.DisplayAlerts = False
+        wb.Worksheets(sumName).Delete
+        Application.DisplayAlerts = True
+    End If
+    Set wsP = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+
+    Set pc = wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=srcRange)
+    Set pt = pc.CreatePivotTable(TableDestination:=wsP.Range("A3"), TableName:="ptSoldSummary")
+    pt.RowAxisLayout xlTabularRow
+
+    '--- Step 25: Repayment Date on Rows -------------------------------------
+    rowField = Cfg("PIVOT_ROW_FIELD", "Repayment Date")
+    On Error Resume Next
+    Set pf = pt.PivotFields(rowField)
+    On Error GoTo 0
+    If pf Is Nothing Then
+        FastMode False
+        Err.Raise vbObjectError + 81, , "Pivot field '" & rowField & "' does not exist. " & _
+                  "Check the header spelling and PIVOT_ROW_FIELD on CONFIG."
+    End If
+    pf.Orientation = xlRowField
+    pf.Position = 1
+
+    '--- Step 26: remove the automatic date grouping (Years / Quarters / Months)
+    UngroupDates pt, rowField
+
+    '--- Step 27: value fields + comma formatting ----------------------------
+    valSpec = Cfg("PIVOT_VALUE_FIELDS", "")
+    fields = Split(valSpec, "|")
+    For i = LBound(fields) To UBound(fields)
+        If Len(Trim$(fields(i))) > 0 Then
+            If AddValueField(pt, Trim$(fields(i)), numFmt) Then
+                added = added + 1
+            Else
+                missing = missing & Trim$(fields(i)) & vbCrLf
+            End If
+        End If
+    Next i
+
+    pt.ColumnGrand = False      ' no total across measures - they do not add up
+    pt.RowGrand = True          ' Grand Total row under every value column
+    pt.GrandTotalName = "Grand Total"
+    wsP.Columns.AutoFit
+    wsP.Name = sumName
+    wb.Save
+    FastMode False
+
+    LogWrite "STEP 24-27", IIf(Len(missing) = 0, "DONE", "CHECK"), _
+        sumName & " built on " & (lastRow - firstRow + 1) & " rows; " & added & " value field(s) added." & _
+        IIf(Len(missing) = 0, "", " Missing: " & Replace(missing, vbCrLf, " / "))
+
+    wsP.Activate
+    If Len(missing) > 0 Then
+        MsgBox "SUMMARY built, but these value fields were not found in the header row:" & vbCrLf & vbCrLf & _
+               missing & vbCrLf & _
+               "Correct the spelling in PIVOT_VALUE_FIELDS on CONFIG (it must match the header text exactly), " & _
+               "then use 'Repeat last step'.", vbExclamation, "Stage 9 - fields missing"
+    Else
+        MsgBox "Steps 24 to 27 complete." & vbCrLf & vbCrLf & _
+               "The '" & sumName & "' sheet holds the pivot: " & rowField & " on Rows (ungrouped), " & _
+               added & " value fields with comma formatting." & vbCrLf & vbCrLf & _
+               "The SOLD FILE is finished. Save a final copy and hand it over.", _
+               vbInformation, "All stages complete"
+    End If
+End Sub
+
+'--- Add one value field, tolerating the various caption forms ---------------
+Private Function AddValueField(pt As PivotTable, ByVal fieldName As String, ByVal numFmt As String) As Boolean
+    Dim pf As PivotField, df As PivotField
+    On Error Resume Next
+    Set pf = pt.PivotFields(fieldName)
+    On Error GoTo 0
+    If pf Is Nothing Then Exit Function
+
+    On Error GoTo Fail
+    Set df = pt.AddDataField(pf, "Sum of " & fieldName, xlSum)
+    df.NumberFormat = numFmt
+    AddValueField = True
+    Exit Function
+Fail:
+    AddValueField = False
+End Function
+
+'--- Strip Excel's automatic date grouping ----------------------------------
+Private Sub UngroupDates(pt As PivotTable, ByVal rowField As String)
+    Dim pf As PivotField, nm As Variant
+
+    On Error Resume Next
+    pt.PivotFields(rowField).DataRange.Cells(1).Ungroup
+    On Error GoTo 0
+
+    ' Excel 2016+ can leave Years / Quarters / Months fields behind
+    For Each nm In Array("Years", "Quarters", "Months", "Days")
+        Set pf = Nothing
+        On Error Resume Next
+        Set pf = pt.PivotFields(CStr(nm))
+        If Not pf Is Nothing Then pf.Orientation = xlHidden
+        On Error GoTo 0
+    Next nm
+End Sub
+
+'--- A pivot cannot be created over a header row with blanks -----------------
+Private Sub CheckBlankHeaders(ws As Worksheet, ByVal hdrRow As Long, ByVal lastCol As Long)
+    Dim c As Long, blanks As String
+    For c = 1 To lastCol
+        If Len(Trim$(CStr(ws.Cells(hdrRow, c).value))) = 0 Then
+            blanks = blanks & ColLtr(c) & " "
+        End If
+    Next c
+    If Len(blanks) > 0 Then
+        Err.Raise vbObjectError + 82, , "The header row " & hdrRow & " is blank in column(s): " & Trim$(blanks) & _
+                  ". Excel will not build a pivot over a blank header. Fill them in and try again."
+    End If
+End Sub
+
+
+As discussed, while reviewing the macro-output, I noticed a few observations where few changes are needed:-
+
+1). SAP extraction data attached for your reference. Need to paste the data in the sold file template exactly in the same format.
+2). Please remove the dots at the end from column AB to AH.
+3). After SAP data pasted, then 2 extra lines at the end need to remove at the bottom as they are grand  total lines
+4). In ref key 1 column – After MU please insert space.
+5). Summary tab (pivot table should reflect exactly as below for your reference) based on data tab preparation.
+6). Column J – Trade payment date & M – Repayment date= please keep the same format as per attached funding file.
+
