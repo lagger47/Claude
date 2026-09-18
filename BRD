@@ -1,0 +1,22 @@
+Earntime BRD:
+Open PeopleSoft HR and run the query "Earntime_Greater_Than_10000 " using the appropriate Run ID.
+Download the resulting Excel file.
+Open Execel file ,Use filter in 1st row
+Using  filteroption   Remove '4 to 7 ,& X ' grade employee from 'L' column 
+Filter values  more than 10000.
+If values more than 10000, then add extra column and multply 'N' column to '80' for every line  item
+if valus comes less than 10000 in additional column ,but their total income for RGP in 'G'  column is more than 10000 values highlight theese cells with all row with same Empid.
+Filter All Highlighted Empid & validated this earn code input  with backup backfile of L3Custom consolidated file in Special Consolidated Spreadsheet file.
+If any diffrence come Highlight ot not found in backup file Highlight these line item  with comment 'Not Found'.
+
+
+Paycalendar Check BRD :
+Open PeopleSoft HR and run the query "Pay_Calendar_Check " using the appropriate Run ID.
+Download the resulting Excel file.
+Open Execel file , Match all Company & Paygroup with SOP 
+Check PPE date & Check date 
+Check paid weeks which should be 2 in 'J' column for every line 
+Check Deduction & Genral Deduction which should be 'D' for 'I & J' column.
+Check Pay Period which should be 2 in 'N' if comes 3 review accorid to payroll in a month.
+Check 'Q to AB 'column  & ' AE to AZ' column which shold be 'N' except 'AF & AM' column.
+If any thing umnatched reach out to client to fix the issue.
