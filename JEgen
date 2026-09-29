@@ -1,0 +1,605 @@
+Option Explicit
+
+'==============================================================================
+' INTERCOMPANY BILLING - JOURNAL ENTRY MACRO (v2)
+'
+' Run:   ALT+F8 > GenerateJournalEntries > Run
+'
+' Reads the yellow input cells on JE-prepare, filters the GL tab, and writes
+' the journal to the tab named in "Output Sheet Name" (cleared every run).
+'
+' Inputs are located by their LABEL in column A of JE-prepare (not by fixed
+' cell address), so inserting a row on the control tab will not break it.
+' The journal reference is read from the four cells under the "Company" header.
+'==============================================================================
+
+Private Const CONTROL_SHEET As String = "JE-prepare"
+
+' ---- GL field slots --------------------------------------------------------
+Private Const G_LEDGER As Long = 0
+Private Const G_CURRENCY As Long = 1
+Private Const G_PERIOD As Long = 2
+Private Const G_YEAR As Long = 3
+Private Const G_PROJECT As Long = 4
+Private Const G_DEPT As Long = 5
+Private Const G_ACCOUNT As Long = 6
+Private Const G_AMOUNT As Long = 7
+Private Const G_AFFILIATE As Long = 8
+Private Const G_ACTIVITY As Long = 9
+Private Const G_POOL As Long = 10
+Private Const G_DEST As Long = 11
+Private Const G_PRODUCT As Long = 12
+Private Const G_LINEDESCR As Long = 13
+Private Const G_DESCR As Long = 14
+Private Const G_COUNT As Long = 15
+
+' ---- Output columns (1-based) ----------------------------------------------
+Private Const O_AMOUNT As Long = 1
+Private Const O_ACCOUNT As Long = 2
+Private Const O_AFFILIATE As Long = 3
+Private Const O_PROJECT As Long = 4
+Private Const O_ACTIVITY As Long = 5
+Private Const O_DEPT As Long = 6
+Private Const O_POOL As Long = 7
+Private Const O_DEST As Long = 8
+Private Const O_PRODUCT As Long = 9
+Private Const O_REF As Long = 10
+Private Const O_DESC As Long = 11
+Private Const O_COUNT As Long = 11
+Private Const OUT_HEADERS As String = _
+    "Amount|GL ACC|Affiliate|Project|Activity|Dept|Pool|Destination|Product|Reference|Description"
+
+'==============================================================================
+' MAIN
+'==============================================================================
+Public Sub GenerateJournalEntries()
+    Dim wb As Workbook: Set wb = ThisWorkbook
+    Dim wsC As Worksheet, wsGL As Worksheet, wsOut As Worksheet, wsDet As Worksheet
+    Dim calcMode As XlCalculation
+    Dim t0 As Double
+    Dim msg As String, msgStyle As VbMsgBoxStyle
+
+    t0 = Timer
+    calcMode = Application.Calculation
+    On Error GoTo Fail
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+
+    '--- 1. Control tab and inputs --------------------------------------------
+    Set wsC = GetSheet(wb, CONTROL_SHEET)
+    If wsC Is Nothing Then Halt "Control tab '" & CONTROL_SHEET & "' not found."
+
+    Dim sLedger As String, sCurr As String, sPeriod As String, sYear As String
+    Dim sProject As String, sDept As String, sAcct As String, sExcl As String
+    Dim sGL As String, sOut As String, sSum As String, ref As String
+    Dim markupPct As Double
+
+    sLedger = ReadInput(wsC, "Business Unit")
+    sCurr = ReadInput(wsC, "Currency")
+    sPeriod = ReadInput(wsC, "Period")
+    sYear = ReadInput(wsC, "Year")
+    markupPct = ReadMarkup(wsC)
+    sProject = ReadInput(wsC, "Project")
+    sDept = ReadInput(wsC, "Dept")
+    sAcct = ReadInput(wsC, "Account")
+    sExcl = ReadInput(wsC, "Exclude Accounts")
+    sGL = ReadInput(wsC, "Raw GL File")
+    sOut = ReadInput(wsC, "Output Sheet Name")
+    sSum = ReadInput(wsC, "Summarise By")
+    ref = BuildReference(wsC)
+
+    '--- 2. Safety checks -----------------------------------------------------
+    If Len(sGL) = 0 Then Halt "Raw GL File is blank."
+    If Len(sOut) = 0 Then Halt "Output Sheet Name is blank."
+    If StrComp(sOut, sGL, vbTextCompare) = 0 _
+       Or StrComp(sOut, wsC.Name, vbTextCompare) = 0 _
+       Or StrComp(sOut, "Rules", vbTextCompare) = 0 Then
+        Halt "Output Sheet Name '" & sOut & "' points at the GL, JE-prepare or Rules tab. " & _
+             "That tab would be wiped. Use a different name."
+    End If
+
+    Set wsGL = GetSheet(wb, sGL)
+    If wsGL Is Nothing Then Halt "Sheet not found: '" & sGL & "'. Check the Raw GL File cell."
+
+    '--- 3. Read GL into memory -----------------------------------------------
+    Dim lastRow As Long, lastCol As Long, data As Variant
+    lastRow = LastUsedRow(wsGL)
+    lastCol = LastUsedCol(wsGL)
+    If lastRow < 2 Then Halt "The '" & sGL & "' tab has no data below the header row."
+    data = wsGL.Range(wsGL.Cells(1, 1), wsGL.Cells(lastRow, lastCol)).Value
+
+    Dim gc(0 To G_COUNT - 1) As Long
+    gc(G_LEDGER) = HeaderCol(data, lastCol, "Ledger")
+    gc(G_CURRENCY) = HeaderCol(data, lastCol, "Currency")
+    gc(G_PERIOD) = HeaderCol(data, lastCol, "Period")
+    gc(G_YEAR) = HeaderCol(data, lastCol, "Year")
+    gc(G_PROJECT) = HeaderCol(data, lastCol, "Project")
+    gc(G_DEPT) = HeaderCol(data, lastCol, "Dept")
+    gc(G_ACCOUNT) = HeaderCol(data, lastCol, "Account")
+    gc(G_AMOUNT) = HeaderCol(data, lastCol, "Amount")
+    gc(G_AFFILIATE) = HeaderCol(data, lastCol, "Affiliate")
+    gc(G_ACTIVITY) = HeaderCol(data, lastCol, "Activity")
+    gc(G_POOL) = HeaderCol(data, lastCol, "Pool/Prime|Pool")
+    gc(G_DEST) = HeaderCol(data, lastCol, "Destination")
+    gc(G_PRODUCT) = HeaderCol(data, lastCol, "Product")
+    gc(G_LINEDESCR) = HeaderCol(data, lastCol, "Line Descr")
+    gc(G_DESCR) = HeaderCol(data, lastCol, "Descr")
+
+    If gc(G_AMOUNT) = 0 Then Halt "No 'Amount' column found in row 1 of '" & sGL & "'."
+
+    Dim missing As String
+    missing = MissingColumns(gc)
+
+    '--- 4. Filter ------------------------------------------------------------
+    Dim fLedger As Variant, fCurr As Variant, fPeriod As Variant, fYear As Variant
+    Dim fProject As Variant, fDept As Variant, fAcct As Variant, fExcl As Variant
+    fLedger = ParseList(sLedger)
+    fCurr = ParseList(sCurr)
+    fPeriod = ParseList(sPeriod)
+    fYear = ParseList(sYear)
+    fProject = ParseList(sProject)
+    fDept = ParseList(sDept)
+    fAcct = ParseList(sAcct)
+    fExcl = ParseList(sExcl)
+
+    Dim nRead As Long, m As Long, r As Long
+    Dim hits() As Long
+    nRead = lastRow - 1
+    ReDim hits(1 To nRead)
+
+    For r = 2 To lastRow
+        If Len(CellVal(data, r, gc(G_AMOUNT))) = 0 And Len(CellVal(data, r, gc(G_ACCOUNT))) = 0 Then GoTo NextRow
+        If Not PassFilter(data, r, gc(G_LEDGER), fLedger) Then GoTo NextRow
+        If Not PassFilter(data, r, gc(G_CURRENCY), fCurr) Then GoTo NextRow
+        If Not PassFilter(data, r, gc(G_PERIOD), fPeriod) Then GoTo NextRow
+        If Not PassFilter(data, r, gc(G_YEAR), fYear) Then GoTo NextRow
+        If Not PassFilter(data, r, gc(G_PROJECT), fProject) Then GoTo NextRow
+        If Not PassFilter(data, r, gc(G_DEPT), fDept) Then GoTo NextRow
+        If Not PassFilter(data, r, gc(G_ACCOUNT), fAcct) Then GoTo NextRow
+        ' Exclusions run after the include filter
+        If Not IsEmpty(fExcl) And gc(G_ACCOUNT) > 0 Then
+            If MatchesAny(data(r, gc(G_ACCOUNT)), fExcl) Then GoTo NextRow
+        End If
+        m = m + 1
+        hits(m) = r
+NextRow:
+    Next r
+
+    If m = 0 Then
+        msg = "No records found." & vbCrLf & vbCrLf & _
+              "Your filters excluded everything. Most common causes:" & vbCrLf & _
+              "  - Period does not match the GL format" & vbCrLf & _
+              "  - Dept typed as 823 when the GL holds 823CP (use 823*)" & vbCrLf & vbCrLf & _
+              "GL lines scanned: " & nRead & vbCrLf & _
+              "Missing GL columns: " & IIf(Len(missing) = 0, "None", missing) & vbCrLf & vbCrLf & _
+              "The output tab was NOT changed."
+        msgStyle = vbExclamation
+        GoTo Done
+    End If
+
+    '--- 5. Build journal lines (one per GL line) -----------------------------
+    Dim lines() As Variant, i As Long, amt As Double, baseTotal As Double
+    ReDim lines(1 To m, 1 To O_COUNT)
+    For i = 1 To m
+        r = hits(i)
+        amt = ToAmount(data(r, gc(G_AMOUNT)))
+        lines(i, O_AMOUNT) = amt
+        lines(i, O_ACCOUNT) = RawVal(data, r, gc(G_ACCOUNT))
+        lines(i, O_AFFILIATE) = RawVal(data, r, gc(G_AFFILIATE))
+        lines(i, O_PROJECT) = RawVal(data, r, gc(G_PROJECT))
+        lines(i, O_ACTIVITY) = RawVal(data, r, gc(G_ACTIVITY))
+        lines(i, O_DEPT) = RawVal(data, r, gc(G_DEPT))
+        lines(i, O_POOL) = RawVal(data, r, gc(G_POOL))
+        lines(i, O_DEST) = RawVal(data, r, gc(G_DEST))
+        lines(i, O_PRODUCT) = RawVal(data, r, gc(G_PRODUCT))
+        lines(i, O_REF) = ref
+        lines(i, O_DESC) = LineDesc(data, r, gc(G_LINEDESCR), gc(G_DESCR))
+        baseTotal = baseTotal + amt
+    Next i
+
+    '--- 6. Optional roll-up --------------------------------------------------
+    Dim grp As Variant, useSum As Boolean, outArr As Variant, k As Long
+    grp = ParseSummarise(sSum)
+    useSum = Not IsEmpty(grp)
+    If useSum Then
+        outArr = SummariseLines(lines, m, grp, k)
+    Else
+        outArr = lines
+        k = m
+    End If
+
+    '--- 7. Totals ------------------------------------------------------------
+    Dim markupAmt As Double, totalDr As Double, totalCr As Double
+    baseTotal = R2(baseTotal)
+    markupAmt = R2(baseTotal * markupPct)
+    totalDr = baseTotal
+    totalCr = R2(baseTotal + markupAmt)
+
+    '--- 8. Write output ------------------------------------------------------
+    Set wsOut = GetOrCreateSheet(wb, sOut)
+    WriteLines wsOut, outArr, k
+
+    Dim rowT As Long
+    rowT = k + 3
+    wsOut.Cells(rowT, O_AMOUNT).Value = totalDr
+    wsOut.Cells(rowT, O_ACCOUNT).Value = "TOTAL DEBIT"
+    wsOut.Cells(rowT + 1, O_AMOUNT).Value = totalCr
+    wsOut.Cells(rowT + 1, O_ACCOUNT).Value = "TOTAL CREDIT"
+    wsOut.Range(wsOut.Cells(rowT, 1), wsOut.Cells(rowT + 1, 2)).Font.Bold = True
+
+    ' Summary block in M:N
+    Dim sm As Variant
+    sm = Array( _
+        Array("SUMMARY", ""), _
+        Array("Reference", ref), _
+        Array("Base amount (Total Debit)", totalDr), _
+        Array("Markup %", markupPct), _
+        Array("Markup amount", markupAmt), _
+        Array("Total (Total Credit)", totalCr), _
+        Array("DR less CR", R2(totalDr - totalCr)), _
+        Array("GL lines read", nRead), _
+        Array("GL lines matched", m), _
+        Array("JE lines written", k), _
+        Array("Mode", IIf(useSum, "Summarised by " & sSum, "Line by line")), _
+        Array("Missing GL columns", IIf(Len(missing) = 0, "None", missing)), _
+        Array("Run at", Now))
+    For i = 0 To UBound(sm)
+        wsOut.Cells(1 + i, 13).Value = sm(i)(0)
+        wsOut.Cells(1 + i, 14).Value = sm(i)(1)
+    Next i
+    wsOut.Range("M1").Font.Bold = True
+    wsOut.Range("N2").NumberFormat = "@"
+    wsOut.Range("N2").Value = ref
+    wsOut.Range("N3,N5:N7").NumberFormat = "#,##0.00;[Red]-#,##0.00"
+    wsOut.Range("N4").NumberFormat = "0.00%"
+    wsOut.Range("N13").NumberFormat = "dd-mmm-yyyy hh:mm"
+    wsOut.Columns("A:N").AutoFit
+
+    ' Audit trail when rolled up
+    If useSum Then
+        Dim detName As String
+        detName = Left$(sOut & "_Detail", 31)
+        If StrComp(detName, sGL, vbTextCompare) = 0 Or StrComp(detName, wsC.Name, vbTextCompare) = 0 Then
+            Halt "Detail tab name '" & detName & "' clashes with an input tab."
+        End If
+        Set wsDet = GetOrCreateSheet(wb, detName)
+        WriteLines wsDet, lines, m
+        wsDet.Cells(m + 3, O_AMOUNT).Value = totalDr
+        wsDet.Cells(m + 3, O_ACCOUNT).Value = "TOTAL (ties to " & sOut & " TOTAL DEBIT)"
+        wsDet.Cells(m + 3, O_ACCOUNT).Font.Bold = True
+        wsDet.Columns("A:K").AutoFit
+    End If
+
+    wsOut.Activate
+    wsOut.Range("A1").Select
+
+    msg = "Journal written to '" & sOut & "'." & vbCrLf & vbCrLf & _
+          "Reference:        " & ref & vbCrLf & _
+          "GL lines read:    " & nRead & vbCrLf & _
+          "GL lines matched: " & m & vbCrLf & _
+          "JE lines written: " & k & IIf(useSum, "  (detail in '" & detName & "')", "") & vbCrLf & vbCrLf & _
+          "Total Debit:      " & Format$(totalDr, "#,##0.00") & vbCrLf & _
+          "Markup (" & Format$(markupPct, "0.##%") & "):  " & Format$(markupAmt, "#,##0.00") & vbCrLf & _
+          "Total Credit:     " & Format$(totalCr, "#,##0.00") & vbCrLf & vbCrLf & _
+          IIf(Len(missing) > 0, "WARNING - missing GL columns (filters on these were skipped): " & missing & vbCrLf, "") & _
+          "Done in " & Format$(Timer - t0, "0.0") & "s"
+    msgStyle = IIf(Len(missing) > 0, vbExclamation, vbInformation)
+
+Done:
+    Application.Calculation = calcMode
+    Application.ScreenUpdating = True
+    If Len(msg) > 0 Then MsgBox msg, msgStyle, "Journal Entry"
+    Exit Sub
+
+Fail:
+    Application.Calculation = calcMode
+    Application.ScreenUpdating = True
+    MsgBox "Journal not generated." & vbCrLf & vbCrLf & Err.Description, vbCritical, "Journal Entry"
+End Sub
+
+'==============================================================================
+' INPUT HELPERS
+'==============================================================================
+Private Sub Halt(ByVal msg As String)
+    Err.Raise vbObjectError + 513, "JournalEntry", msg
+End Sub
+
+Private Function FindLabel(ws As Worksheet, ByVal label As String) As Range
+    Dim lastRow As Long, r As Long, txt As String, lbl As String
+    lbl = NormText(label)
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    For r = 1 To lastRow
+        txt = NormText(CStr(ws.Cells(r, 1).Text))
+        If txt = lbl Or Left$(txt, Len(lbl) + 1) = lbl & " " Then
+            Set FindLabel = ws.Cells(r, 1)
+            Exit Function
+        End If
+    Next r
+End Function
+
+Private Function ReadInput(ws As Worksheet, ByVal label As String) As String
+    Dim c As Range
+    Set c = FindLabel(ws, label)
+    If c Is Nothing Then Halt "Label '" & label & "' not found in column A of " & ws.Name & "."
+    ReadInput = Trim$(SafeText(c.Offset(0, 1).Value))
+End Function
+
+Private Function ReadMarkup(ws As Worksheet) As Double
+    Dim c As Range, v As Variant
+    Set c = FindLabel(ws, "Markup %")
+    If c Is Nothing Then Halt "Label 'Markup %' not found in column A of " & ws.Name & "."
+    v = c.Offset(0, 1).Value
+    If IsError(v) Then Exit Function
+    If IsEmpty(v) Then Exit Function
+    If Not IsNumeric(v) Then Exit Function
+    ' 10 means 10%. If someone typed 10% into a %-formatted cell, Excel stores 0.1.
+    If InStr(1, c.Offset(0, 1).NumberFormat, "%") > 0 Then
+        ReadMarkup = CDbl(v)
+    Else
+        ReadMarkup = CDbl(v) / 100
+    End If
+End Function
+
+Private Function BuildReference(ws As Worksheet) As String
+    Dim c As Range
+    Set c = ws.Cells.Find(What:="Company", LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
+    If c Is Nothing Then Halt "Journal reference header 'Company' not found on " & ws.Name & "."
+    BuildReference = Trim$(SafeText(c.Offset(1, 0).Value)) & _
+                     Trim$(SafeText(c.Offset(1, 1).Value)) & _
+                     Pad2(SafeText(c.Offset(1, 2).Value)) & _
+                     Pad2(SafeText(c.Offset(1, 3).Value))
+End Function
+
+Private Function Pad2(ByVal s As String) As String
+    ' Guards the leading zero on Month / Seq even if the cell lost its text format
+    s = Trim$(s)
+    If Len(s) = 1 And IsNumeric(s) Then s = "0" & s
+    Pad2 = s
+End Function
+
+'==============================================================================
+' FILTER HELPERS
+'==============================================================================
+Private Function ParseList(ByVal s As String) As Variant
+    ' Returns Empty when blank (= no filter), else array of UCASE trimmed tokens
+    Dim parts() As String, tmp() As String, i As Long, n As Long, p As String
+    s = Trim$(s)
+    If Len(s) = 0 Then Exit Function
+    parts = Split(s, ",")
+    ReDim tmp(0 To UBound(parts))
+    For i = 0 To UBound(parts)
+        p = UCase$(Trim$(parts(i)))
+        If Len(p) > 0 Then
+            tmp(n) = p
+            n = n + 1
+        End If
+    Next i
+    If n = 0 Then Exit Function
+    ReDim Preserve tmp(0 To n - 1)
+    ParseList = tmp
+End Function
+
+Private Function PassFilter(data As Variant, ByVal r As Long, ByVal c As Long, pats As Variant) As Boolean
+    ' Blank filter or missing column = pass (column-missing is skipped, per Rules tab)
+    If IsEmpty(pats) Or c = 0 Then
+        PassFilter = True
+    Else
+        PassFilter = MatchesAny(data(r, c), pats)
+    End If
+End Function
+
+Private Function MatchesAny(ByVal v As Variant, pats As Variant) As Boolean
+    Dim s As String, p As String, i As Long
+    If IsError(v) Then Exit Function
+    s = UCase$(Trim$(CStr(v)))
+    For i = LBound(pats) To UBound(pats)
+        p = pats(i)
+        If InStr(1, p, "*") > 0 Then
+            If s Like EscapeLike(p) Then MatchesAny = True: Exit Function
+        ElseIf s = p Then
+            MatchesAny = True: Exit Function
+        End If
+    Next i
+End Function
+
+Private Function EscapeLike(ByVal p As String) As String
+    ' Only * is a wildcard for users; neutralise VBA's other Like tokens
+    p = Replace(p, "[", "[[]")
+    p = Replace(p, "?", "[?]")
+    p = Replace(p, "#", "[#]")
+    EscapeLike = p
+End Function
+
+'==============================================================================
+' SUMMARISE
+'==============================================================================
+Private Function ParseSummarise(ByVal s As String) As Variant
+    Dim toks As Variant, res() As Long, i As Long, j As Long, n As Long, idx As Long, dup As Boolean
+    toks = ParseList(s)
+    If IsEmpty(toks) Then Exit Function
+    ReDim res(0 To UBound(toks))
+    For i = 0 To UBound(toks)
+        Select Case toks(i)
+            Case "ACCOUNT", "GL ACC": idx = O_ACCOUNT
+            Case "AFFILIATE": idx = O_AFFILIATE
+            Case "PROJECT": idx = O_PROJECT
+            Case "ACTIVITY": idx = O_ACTIVITY
+            Case "DEPT": idx = O_DEPT
+            Case "POOL", "POOL/PRIME": idx = O_POOL
+            Case "DESTINATION": idx = O_DEST
+            Case "PRODUCT": idx = O_PRODUCT
+            Case Else: idx = 0      ' anything else is ignored
+        End Select
+        If idx > 0 Then
+            dup = False
+            For j = 0 To n - 1
+                If res(j) = idx Then dup = True: Exit For
+            Next j
+            If Not dup Then
+                res(n) = idx
+                n = n + 1
+            End If
+        End If
+    Next i
+    If n = 0 Then Exit Function
+    ReDim Preserve res(0 To n - 1)
+    ParseSummarise = res
+End Function
+
+Private Function SummariseLines(lines As Variant, ByVal m As Long, grp As Variant, ByRef k As Long) As Variant
+    Dim dict As Object, res() As Variant
+    Dim i As Long, g As Long, slot As Long, key As String
+    Set dict = CreateObject("Scripting.Dictionary")
+    ReDim res(1 To m, 1 To O_COUNT)
+    k = 0
+    For i = 1 To m
+        key = ""
+        For g = LBound(grp) To UBound(grp)
+            key = key & Chr$(31) & UCase$(Trim$(CStr(lines(i, grp(g)))))
+        Next g
+        If dict.Exists(key) Then
+            slot = dict(key)
+            res(slot, O_AMOUNT) = res(slot, O_AMOUNT) + lines(i, O_AMOUNT)
+            If CStr(res(slot, O_DESC)) <> CStr(lines(i, O_DESC)) Then res(slot, O_DESC) = "Multiple"
+        Else
+            k = k + 1
+            dict.Add key, k
+            For g = LBound(grp) To UBound(grp)
+                res(k, grp(g)) = lines(i, grp(g))
+            Next g
+            res(k, O_AMOUNT) = lines(i, O_AMOUNT)
+            res(k, O_REF) = lines(i, O_REF)
+            res(k, O_DESC) = lines(i, O_DESC)
+        End If
+    Next i
+    For i = 1 To k
+        res(i, O_AMOUNT) = R2(res(i, O_AMOUNT))
+    Next i
+    SummariseLines = res
+End Function
+
+'==============================================================================
+' OUTPUT
+'==============================================================================
+Private Sub WriteLines(ws As Worksheet, arr As Variant, ByVal k As Long)
+    ws.Cells.Clear
+    ws.Range("A1").Resize(1, O_COUNT).Value = Split(OUT_HEADERS, "|")
+    ws.Range("A1").Resize(1, O_COUNT).Font.Bold = True
+    ws.Columns(O_REF).NumberFormat = "@"
+    ws.Range("A2").Resize(k, O_COUNT).Value = arr     ' only the first k rows are written
+    ws.Columns(O_AMOUNT).NumberFormat = "#,##0.00;[Red]-#,##0.00"
+End Sub
+
+'==============================================================================
+' GENERAL HELPERS
+'==============================================================================
+Private Function GetSheet(wb As Workbook, ByVal nm As String) As Worksheet
+    Dim ws As Worksheet
+    For Each ws In wb.Worksheets
+        If StrComp(ws.Name, nm, vbTextCompare) = 0 Then
+            Set GetSheet = ws
+            Exit Function
+        End If
+    Next ws
+End Function
+
+Private Function GetOrCreateSheet(wb As Workbook, ByVal nm As String) As Worksheet
+    Dim ws As Worksheet
+    Set ws = GetSheet(wb, nm)
+    If ws Is Nothing Then
+        Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+        ws.Name = nm
+    End If
+    Set GetOrCreateSheet = ws
+End Function
+
+Private Function LastUsedRow(ws As Worksheet) As Long
+    Dim c As Range
+    Set c = ws.Cells.Find(What:="*", LookIn:=xlFormulas, LookAt:=xlPart, _
+                          SearchOrder:=xlByRows, SearchDirection:=xlPrevious)
+    If Not c Is Nothing Then LastUsedRow = c.Row
+End Function
+
+Private Function LastUsedCol(ws As Worksheet) As Long
+    Dim c As Range
+    Set c = ws.Cells.Find(What:="*", LookIn:=xlFormulas, LookAt:=xlPart, _
+                          SearchOrder:=xlByColumns, SearchDirection:=xlPrevious)
+    If Not c Is Nothing Then LastUsedCol = c.Column
+End Function
+
+Private Function HeaderCol(data As Variant, ByVal lastCol As Long, ByVal names As String) As Long
+    ' Finds a GL column by header name (row 1). names can hold aliases split by |
+    Dim nm As Variant, c As Long
+    For Each nm In Split(names, "|")
+        For c = 1 To lastCol
+            If Not IsError(data(1, c)) Then
+                If NormText(CStr(data(1, c))) = NormText(CStr(nm)) Then
+                    HeaderCol = c
+                    Exit Function
+                End If
+            End If
+        Next c
+    Next nm
+End Function
+
+Private Function MissingColumns(gc() As Long) As String
+    Dim nm As Variant, i As Long, s As String
+    nm = Array("Ledger", "Currency", "Period", "Year", "Project", "Dept", "Account", "Amount", _
+               "Affiliate", "Activity", "Pool/Prime", "Destination", "Product")
+    For i = 0 To UBound(nm)
+        If gc(i) = 0 Then s = s & IIf(Len(s) > 0, ", ", "") & nm(i)
+    Next i
+    If gc(G_LINEDESCR) = 0 And gc(G_DESCR) = 0 Then s = s & IIf(Len(s) > 0, ", ", "") & "Line Descr/Descr"
+    MissingColumns = s
+End Function
+
+Private Function NormText(ByVal s As String) As String
+    s = Replace(s, Chr$(160), " ")
+    s = Replace(s, vbCr, " ")
+    s = Replace(s, vbLf, " ")
+    s = UCase$(Trim$(s))
+    Do While InStr(1, s, "  ") > 0
+        s = Replace(s, "  ", " ")
+    Loop
+    NormText = s
+End Function
+
+Private Function SafeText(ByVal v As Variant) As String
+    If IsError(v) Then Exit Function
+    If IsEmpty(v) Then Exit Function
+    SafeText = CStr(v)
+End Function
+
+Private Function CellVal(data As Variant, ByVal r As Long, ByVal c As Long) As String
+    If c = 0 Then Exit Function
+    CellVal = Trim$(SafeText(data(r, c)))
+End Function
+
+Private Function RawVal(data As Variant, ByVal r As Long, ByVal c As Long) As Variant
+    RawVal = Empty
+    If c = 0 Then Exit Function
+    If IsError(data(r, c)) Then Exit Function
+    RawVal = data(r, c)
+End Function
+
+Private Function LineDesc(data As Variant, ByVal r As Long, ByVal cLine As Long, ByVal cDescr As Long) As String
+    ' Line Descr first, fall back to Descr
+    LineDesc = CellVal(data, r, cLine)
+    If Len(LineDesc) = 0 Then LineDesc = CellVal(data, r, cDescr)
+End Function
+
+Private Function ToAmount(ByVal v As Variant) As Double
+    ' Signs kept exactly as in the GL; non-numeric treated as 0
+    If IsError(v) Then Exit Function
+    If IsEmpty(v) Then Exit Function
+    If IsNumeric(v) Then ToAmount = CDbl(v)
+End Function
+
+Private Function R2(ByVal x As Double) As Double
+    R2 = Application.WorksheetFunction.Round(x, 2)   ' commercial rounding, not banker's
+End Function
+
+
+
+i want the output in this format with these headers
+Unit	Ledger	Account	Alt Account	Dept ID	Pool	DEST	Proj Unit	Project	Activity	Affiliate	Product	Currency	Amount	Home Dept	Order Number	Order No Line	Stat Amount	Description	Reference
