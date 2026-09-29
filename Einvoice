@@ -1,0 +1,223 @@
+please work a proposed design solution , we need to this to be submitted to Brian, before EOD’30th.
+
+
+Shared AP Mailbox
+↓
+Outlook Macro
+↓
+Invoice Register (Excel)
+↓
+PO Match Validation
+↓
+Country Identification
+↓
+If France/Italy/Poland/Romania/Spain
+↓
+Generate XML
+↓
+Upload to PEPPOL Provider / Optional
+↓
+Government Platform
+↓
+PeopleSoft Voucher Creation
+
+
+Business Case
+Rather than building a solution for all 1,079 invoices, build the e-invoicing workflow only for the 134 EU invoices:
+•	Poland: 71
+•	Spain: 52
+•	Romania: 8
+•	France: 2
+•	Italy: 1
+This significantly reduces cost and complexity.
+Executive Recommendation
+Given the transaction profile, I would recommend a PeopleSoft-connected Excel/Python E-Invoicing Utility that:
+1.	Monitors the AP mailbox.
+2.	Registers and validates all PO invoices.
+3.	Identifies e-invoicing countries automatically.
+4.	Generates PEPPOL/UBL-compliant XML only for the 134 impacted invoices.
+5.	Uploads the XML to a PEPPOL provider (Storecove/Pagero).
+6.	Creates PeopleSoft voucher-load files after successful submission.
+This is likely the most cost-effective solution before considering enterprise tools such as Sovos or Avalara.
+You said: 
+Creates PeopleSoft voucher-load files after successful submission explian this better 
+Copilot said: 
+This is actually the most important part of the solution.
+When I say "Create PeopleSoft voucher-load files after successful submission", I mean that PeopleSoft AP should only create the payable after the invoice has successfully met the country's e-invoicing requirements.
+Current Process (Without E-Invoicing)
+Plain Text
+Vendor Invoice
+↓
+AP Mailbox
+↓
+PeopleSoft Voucher
+↓
+Approval
+↓
+Payment
+Show more lines
+________________________________________
+Future Process (With E-Invoicing)
+Plain Text
+Vendor Invoice
+↓
+AP Mailbox
+↓
+Validation
+↓
+E-Invoice XML Generation
+↓
+Government / PEPPOL Submission
+↓
+Accepted
+↓
+PeopleSoft Voucher Creation
+↓
+Approval
+↓
+Payment
+Show more lines
+________________________________________
+What is a Voucher Load File?
+A voucher-load file is simply a structured file that PeopleSoft can automatically import to create an AP voucher.
+Instead of an AP analyst manually keying:
+•	Vendor ID
+•	Invoice Number
+•	PO Number
+•	Amount
+•	Tax
+•	Currency
+the macro creates a file containing those fields.
+Example:
+CSV
+BUSINESS_UNIT,VENDOR_ID,INVOICE_NO,PO_NO,AMOUNT,VAT_AMT,CURRENCY
+EMEA01,100234,INV56789,PO12345,1500,300,EUR
+Show more lines
+PeopleSoft then reads the file and automatically creates the voucher.
+________________________________________
+Why Wait for E-Invoice Acceptance?
+Assume a Poland invoice.
+Scenario A
+Plain Text
+Vendor sends invoice
+↓
+Voucher created
+↓
+Government rejects invoice
+Show more lines
+Result:
+•	Payable exists
+•	Compliance failure exists
+•	AP must reverse voucher
+•	Additional effort
+________________________________________
+Scenario B (Recommended)
+Plain Text
+Vendor sends invoice
+↓
+XML Generated
+↓
+Submitted to KSeF
+↓
+Accepted
+↓
+Voucher File Created
+↓
+PeopleSoft Voucher
+Show more lines
+Result:
+•	Only compliant invoices enter AP
+•	No reversal effort
+•	Cleaner audit trail
+________________________________________
+What the Macro Produces
+For every compliant invoice:
+Invoice Register
+Plain Text
+INV001
+Status = Accepted
+Show more lines
+XML File
+Plain Text
+INV001.xml
+Show more lines
+Voucher Load File
+Plain Text
+INV001.csv
+Show more lines
+Audit Log
+Plain Text
+Submitted Date
+Submission ID
+Acceptance Date
+Government Reference Number
+Voucher ID
+Show more lines
+________________________________________
+Example for Poland
+Plain Text
+Vendor Invoice
+↓
+Mailbox
+↓
+Macro Validation
+↓
+Generate KSeF XML
+↓
+Submit
+↓
+KSeF Ref No:
+PL-2026-123456
+↓
+Macro Receives Acceptance
+↓
+Create Voucher Load File
+↓
+PeopleSoft Voucher Build
+↓
+Voucher #987654
+Show more lines
+The voucher record can also store:
+Plain Text
+Government Reference Number
+KSeF Reference Number
+PEPPOL Tracking Number
+Show more lines
+for audit purposes.
+________________________________________
+Example for Your Landscape
+Your monthly volume requiring e-invoicing is approximately:
+Country	Volume
+Poland	71
+Spain	52
+Romania	8
+France	2
+Italy	1
+Total: 134 invoices/month
+For these 134 invoices:
+Plain Text
+AP Mailbox
+↓
+Macro identifies Country
+↓
+E-Invoice Validation
+↓
+XML Generation
+↓
+Government Acceptance
+↓
+Voucher File Creation
+↓
+PeopleSoft Voucher Build
+Show more lines
+For the remaining ~945 invoices:
+Plain Text
+AP Mailbox
+↓
+PO Match
+↓
+Voucher Load File
+↓
+PeopleSoft
+Show more lines
+No e-invoicing step required.
