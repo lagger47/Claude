@@ -1,0 +1,40 @@
+2.16 DELIVERED WITH 22 Projects 
+4 In Pipeline with impact of .4
+
+Did a workshop with team on how to leverage AI and how to Look at a process to identify quick opportunities 
+Built a SMART Email reply tool still in tetsing phase for Payroll 
+Activity tracker implemented for Payroll Team for Time and Motion
+
+
+Sl No.	LOB	Tower/Process	Activity	Sub Activity	Status	Value (FTE)	Cateogory
+1	IAG&GBS	GL	Account Reconciliations	IBS Reconiliation	Completed	1.22	FY'25
+2	IAG	GL	Intercompany Accounting	IBS AP Settlement	Completed	0.01	FY'25
+3	IAG&GBS	GL	Account Reconciliations	Bank Recon	Completed	0.4	FY'25
+4	GBS	Payroll	Input data upload	Pakistan Variable Sheet	Completed	0.02	Phase 1- FY'26
+5	GBS	Payroll	Canada Payroll	MEP77	Completed	0.01	Phase 1- FY'26
+6	GBS	Payroll	Canada Payroll	AMFA DUES 	Completed	0.01	Phase 1- FY'26
+7	GBS	Payroll	Canada Payroll	AMFA RRFP 	Completed	0.01	Phase 1- FY'26
+8	GBS	Payroll	US Payroll	Time & Labour	Completed	0.11	Phase 1- FY'26
+9	GBS	AP	Daily Reporting	APAC/EMEA VL report	Completed	0.16	Phase 1- FY'26
+10	GBS	R2R	Payroll Analytics	RF - On-cycle JE 	Completed	0.30	Phase 1- FY'26
+11	GBS	R2R	Payroll Analytics	ADP Billback	Completed	0.15	Phase 1- FY'26
+12	GBS	R2R	Payroll Analytics	Tution JE	Completed	0.05	Phase 1- FY'26
+13	GBS	AP	Daily Reporting	APAC/EMEA (H2H) Extraction Report	Changes	0.08	Phase 2- FY'26
+14	GBS	AP	Daily Reporting	Daily Reporting(2 Reports)	Yet to Start	0.16	Phase 2- FY'26
+15	IAG&GBS	GL	Account Reconciliations	TRADE AP/AR Reconciliation	Awaiting BRD 	0.2	Phase 2- FY'26
+16	IAG	GL	Account Reconciliations	IBS Billing	UAT	0.06	Phase 2- FY'26
+17	GBS	O2C	Cash App	Cash App	Completed	0.2	Phase2 - FY'26
+18	GBS	AP	PSPC Buyer Workflow	SharePoint Item Creation	Completed	0.2	Phase2 - FY'26
+							
+							
+							
+Sl No.	LOB	Tower/Process	Activity	Sub Activity	Status	Value (FTE)	Cateogory
+1	GBS	US Payroll	Payroll Processing	Load File activity	Completed	0.03	VSM Ideas_FY'25-26
+2	GBS	US Payroll	Payroll Processing	INACTIVE_PAID_CK – Querry	Completed	0.13	VSM Ideas_FY'25-26
+3	GBS	US Payroll	Payroll Processing	Net>10000	Completed	0.01	VSM Ideas_FY'25-26
+4	GBS	US Payroll	Payroll Processing	EarnTime>10000	Completed	0.01	VSM Ideas_FY'25-26
+5	GBS	US Payroll	Payroll Processing	HPAC deduction report for accuracy	Completed	0.01	VSM Ideas_FY'25-26
+6	GBS	US Payroll	Payroll Processing	Integrate pay calendar with payroll schedules for consistency	Completed	0.01	VSM Ideas_FY'25-26
+7	GBS	US Payroll	Payroll Processing	Reconcile backup & push-up files automatically for data integrity	Completed	0.01	VSM Ideas_FY'25-26
+8	GBS	US Payroll	Payroll Processing	"Reconciliation pre & post-final calculation to cartel processing time/
+Compare Prior vs current pyroll"	Not Feasible	0.01	VSM Ideas_FY'25-26
