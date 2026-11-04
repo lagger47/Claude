@@ -1,0 +1,49 @@
+If Not IsObject(application) Then
+   Set SapGuiAuto  = GetObject("SAPGUI")
+   Set application = SapGuiAuto.GetScriptingEngine
+End If
+If Not IsObject(connection) Then
+   Set connection = application.Children(0)
+End If
+If Not IsObject(session) Then
+   Set session    = connection.Children(0)
+End If
+If IsObject(WScript) Then
+   WScript.ConnectObject session,     "on"
+   WScript.ConnectObject application, "on"
+End If
+session.findById("wnd[0]").maximize
+session.findById("wnd[0]/tbar[0]/okcd").text = "/n/sop/cdm"
+session.findById("wnd[0]").sendVKey 0
+session.findById("wnd[0]/tbar[1]/btn[18]").press
+session.findById("wnd[0]/usr/btn%__ZUMSB_%_APP_%-VALU_PUSH").press
+session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").text = "ST6"
+session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,2]").text = "SS3"
+session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").setFocus
+session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").caretPosition = 3
+session.findById("wnd[1]/tbar[0]/btn[8]").press
+session.findById("wnd[0]/usr/btn%__AKTYP_%_APP_%-VALU_PUSH").press
+session.findById("wnd[1]/tbar[0]/btn[14]").press
+session.findById("wnd[1]/tbar[0]/btn[8]").press
+session.findById("wnd[0]/usr/btn%__ABGSL_%_APP_%-VALU_PUSH").press
+session.findById("wnd[1]/tbar[0]/btn[16]").press
+session.findById("wnd[1]/tbar[0]/btn[8]").press
+session.findById("wnd[0]/usr/btn%__AUSTA_%_APP_%-VALU_PUSH").press
+session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE").columns.elementAt(1).width = 2
+session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,6]").text = "ST"
+session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,7]").text = "ER"
+session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,7]").setFocus
+session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,7]").caretPosition = 2
+session.findById("wnd[1]/tbar[0]/btn[8]").press
+session.findById("wnd[0]/tbar[1]/btn[8]").press
+session.findById("wnd[0]/usr/subSUB_2000_ALRT_TAB:/SERR/FS2COLL_FX_ALERTLIST_NEW:2200/tabsTAB_ALRT/tabpTAB_ALRT_FC1/ssubTAB_ALRT_SCA:/SERR/FS2COLL_FX_ALERTLIST_NEW:2201/cntlCONTROL_ALERTLIST/shellcont/shell").setCurrentCell -1,"FAELLOP"
+session.findById("wnd[0]/usr/subSUB_2000_ALRT_TAB:/SERR/FS2COLL_FX_ALERTLIST_NEW:2200/tabsTAB_ALRT/tabpTAB_ALRT_FC1/ssubTAB_ALRT_SCA:/SERR/FS2COLL_FX_ALERTLIST_NEW:2201/cntlCONTROL_ALERTLIST/shellcont/shell").selectColumn "FAELLOP"
+session.findById("wnd[0]/usr/subSUB_2000_ALRT_TAB:/SERR/FS2COLL_FX_ALERTLIST_NEW:2200/tabsTAB_ALRT/tabpTAB_ALRT_FC1/ssubTAB_ALRT_SCA:/SERR/FS2COLL_FX_ALERTLIST_NEW:2201/cntlCONTROL_ALERTLIST/shellcont/shell").pressToolbarButton "&MB_FILTER"
+session.findById("wnd[1]/usr/ssub%_SUBSCREEN_FREESEL:SAPLSSEL:1105/ctxt%%DYN003-LOW").text = "41,615.00"
+session.findById("wnd[1]/usr/ssub%_SUBSCREEN_FREESEL:SAPLSSEL:1105/ctxt%%DYN003-LOW").setFocus
+session.findById("wnd[1]/usr/ssub%_SUBSCREEN_FREESEL:SAPLSSEL:1105/ctxt%%DYN003-LOW").caretPosition = 9
+session.findById("wnd[1]/tbar[0]/btn[0]").press
+session.findById("wnd[0]/usr/subSUB_2000_ALRT_TAB:/SERR/FS2COLL_FX_ALERTLIST_NEW:2200/tabsTAB_ALRT/tabpTAB_ALRT_FC1/ssubTAB_ALRT_SCA:/SERR/FS2COLL_FX_ALERTLIST_NEW:2201/cntlCONTROL_ALERTLIST/shellcont/shell").currentCellColumn = "ZZ_GSBER"
+session.findById("wnd[0]/usr/subSUB_2000_ALRT_TAB:/SERR/FS2COLL_FX_ALERTLIST_NEW:2200/tabsTAB_ALRT/tabpTAB_ALRT_FC1/ssubTAB_ALRT_SCA:/SERR/FS2COLL_FX_ALERTLIST_NEW:2201/cntlCONTROL_ALERTLIST/shellcont/shell").doubleClickCurrentCell
+session.findById("wnd[0]/shellcont/shell/shellcont[1]/shell/shellcont[1]/shell").topNode = "0000000000"
+session.findById("wnd[0]/usr/subSUB_2000_AKTE_TAB:/SWAG/SAPLFX_AKTE:2200/tabsGTAB_VORGITEM/tabpMAIN_TAB07").select
