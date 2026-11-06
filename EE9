@@ -1,0 +1,38 @@
+If Not IsObject(application) Then
+   Set SapGuiAuto  = GetObject("SAPGUI")
+   Set application = SapGuiAuto.GetScriptingEngine
+End If
+If Not IsObject(connection) Then
+   Set connection = application.Children(0)
+End If
+If Not IsObject(session) Then
+   Set session    = connection.Children(0)
+End If
+If IsObject(WScript) Then
+   WScript.ConnectObject session,     "on"
+   WScript.ConnectObject application, "on"
+End If
+session.findById("wnd[0]").maximize
+session.findById("wnd[0]/usr/cntlIMAGE_CONTAINER/shellcont/shell/shellcont[0]/shell").selectedNode = "F00002"
+session.findById("wnd[0]/usr/cntlIMAGE_CONTAINER/shellcont/shell/shellcont[0]/shell").doubleClickNode "F00002"
+session.findById("wnd[0]/usr/ctxtBKPF-BLDAT").text = "08.11.2026"
+session.findById("wnd[0]/usr/ctxtBKPF-BLART").text = "SS"
+session.findById("wnd[0]/usr/txtBKPF-BELNR").setFocus
+session.findById("wnd[0]/usr/txtBKPF-BELNR").caretPosition = 0
+session.findById("wnd[0]/tbar[1]/btn[20]").press
+session.findById("wnd[0]").sendVKey 0
+session.findById("wnd[0]/usr/sub:SAPMF05A:8507/ctxtBSEG-BSCHL[0,0]").text = "40"
+session.findById("wnd[0]/usr/sub:SAPMF05A:8507/ctxtRF05A-KONTO[0,3]").text = "59400002"
+session.findById("wnd[0]/usr/sub:SAPMF05A:8507/txtBSEG-WRBTR[0,12]").text = "233.194,59"
+session.findById("wnd[0]/usr/sub:SAPMF05A:8507/ctxtBSEG-GSBER[0,29]").text = "158"
+session.findById("wnd[0]/usr/sub:SAPMF05A:8507/ctxtBSEG-KOSTL[0,33]").text = "15800A0999"
+session.findById("wnd[0]/usr/sub:SAPMF05A:8507/ctxtBSEG-PRCTR[0,44]").text = "5100-158"
+session.findById("wnd[0]/usr/sub:SAPMF05A:8507/txtBSEG-ZUONR[0,54]").text = "2205002836"
+session.findById("wnd[0]/usr/sub:SAPMF05A:8507/ctxtBSEG-SGTXT[0,67]").text = "Recharge of costs related to European Sales Accoun"
+session.findById("wnd[0]/usr/sub:SAPMF05A:8507/ctxtBSEG-SGTXT[0,67]").setFocus
+session.findById("wnd[0]/usr/sub:SAPMF05A:8507/ctxtBSEG-SGTXT[0,67]").caretPosition = 50
+
+Posting Key	Account Number	Debit Amount	Credit Amount	Trading Partner	Tax Code	Transaction Type	Business area	Cost Center	Profit Center	Assignment	Text	Special GL Indicator	Internal Order	CZ Alternative Account
+40	59400002	233.194,59		642			158	15800A0999	5100-158	2205002836	Recharge of costs related to European Sales Accoun			602920
+50	57900000		233.194,59	642			158	15800A0999	5100-158	2205002836	reclas Recharge of costs related to European Sales Accoun			648100
+
