@@ -1,0 +1,19 @@
+ style, apply openpyxl's default
+  warn("Workbook contains no default style, apply openpyxl's default")
+C:\Users\u308023\AppData\Roaming\Python\Python313\site-packages\openpyxl\styles\stylesheet.py:237: UserWarning: Workbook contains no default style, apply openpyxl's default
+  warn("Workbook contains no default style, apply openpyxl's default")
+  GL rows 39938 | aging rows 1483 | fx rows 47124
+BU 00144 ... FAILED: 'Range' object has no attribute 'formula_r1c1'
+Traceback (most recent call last):
+  File "C:\Users\u308023\Desktop\Tap_Tool\run_recon.py", line 372, in main
+    rows.append(process_bu(xw, cfg, tmap, bu, bu_cfg,
+                ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           gl, ag, fx, month_end, warns))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\u308023\Desktop\Tap_Tool\run_recon.py", line 240, in process_bu
+    formula_r1c1 = {h: sht.range((start, cols[h])).formula_r1c1
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Range' object has no attribute 'formula_r1c1'. Did you mean: 'formula_array'?
+
+Wrote C:\Users\u308023\Desktop\Tap_Tool\Test\Output\Exception_Summary.xlsx
+Manual steps remaining: L/R/T class, TB match (PDF), checklist sign-off, ARCS upload.
