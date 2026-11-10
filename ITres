@@ -1,0 +1,211 @@
+{
+  "source_file": "144P10.xlsm",
+  "sheets": [
+    "Master Data",
+    "BS Rec Cover Sheet",
+    "Rec Summary",
+    "Check List",
+    "GL Extract CY'26",
+    "IBS_Base (2)",
+    "AP Aging Report",
+    "Supporting P09",
+    "Supporting TB",
+    "Matched & Cleared Items"
+  ],
+  "map": {
+    "Master Data": {},
+    "BS Rec Cover Sheet": {
+      "labels": {
+        "GL Code": {
+          "label_cell": "B4",
+          "value_cell": "L4"
+        },
+        "Month end date": {
+          "label_cell": "U4",
+          "value_cell": "Z4"
+        },
+        "GL Description": {
+          "label_cell": "B6",
+          "value_cell": "L6"
+        },
+        "GL Balance [Reporting Currency]": {
+          "label_cell": "U6",
+          "value_cell": "AE6"
+        },
+        "Company Code": {
+          "label_cell": "B8",
+          "value_cell": "L8"
+        },
+        "Current Month Exchange Rate": {
+          "label_cell": "U8",
+          "value_cell": "V8"
+        },
+        "ARCS Account ID": {
+          "label_cell": "B10",
+          "value_cell": "L10"
+        },
+        "Functional Currency": {
+          "label_cell": "B12",
+          "value_cell": "L12"
+        },
+        "GL Balance [Functional Currency]": {
+          "label_cell": "U12",
+          "value_cell": "AE12"
+        },
+        "Reconciliation Currency": {
+          "label_cell": "B14",
+          "value_cell": "L14"
+        },
+        "Nature of Account": {
+          "label_cell": "U14",
+          "value_cell": "AE14"
+        },
+        "Reporting Currency": {
+          "label_cell": "B16",
+          "value_cell": "L16"
+        },
+        "Account Type": {
+          "label_cell": "U16",
+          "value_cell": "AE16"
+        },
+        "Frequency": {
+          "label_cell": "B18",
+          "value_cell": "L18"
+        },
+        "Status of the Reconciliation": {
+          "label_cell": "U18",
+          "value_cell": "AE18"
+        },
+        "GL Company Code Name": {
+          "label_cell": "B20",
+          "value_cell": "L20"
+        },
+        "Risk Category": {
+          "label_cell": "U20",
+          "value_cell": "AE20"
+        },
+        "Current Period": {
+          "label_cell": "E25",
+          "value_cell": "I25"
+        },
+        "Prepared By": {
+          "label_cell": "B35",
+          "value_cell": "C35"
+        },
+        "Prepared On": {
+          "label_cell": "Y35",
+          "value_cell": "Z35"
+        }
+      },
+      "formula_cells": [
+        "AD26",
+        "AD29",
+        "AD35",
+        "E26",
+        "E29",
+        "G35",
+        "H22",
+        "J26",
+        "J29",
+        "L10",
+        "L20",
+        "L4",
+        "L6",
+        "O26",
+        "O29",
+        "T26",
+        "T29",
+        "Y26",
+        "Y29"
+      ]
+    },
+    "Rec Summary": {
+      "labels": {
+        "Prepared by": {
+          "label_cell": "J2",
+          "value_cell": "K2"
+        },
+        "ABU": {
+          "label_cell": "B3",
+          "value_cell": "C3"
+        },
+        "Prepared On": {
+          "label_cell": "J3",
+          "value_cell": "K3"
+        },
+        "Account": {
+          "label_cell": "B4",
+          "value_cell": "C4"
+        },
+        "Ledger balance": {
+          "label_cell": "E4",
+          "value_cell": "F4"
+        },
+        "Month end date": {
+          "label_cell": "B5",
+          "value_cell": "C5"
+        },
+        "FX Rate": {
+          "label_cell": "G5",
+          "value_cell": "H5"
+        },
+        "Period": {
+          "label_cell": "B6",
+          "value_cell": "C6"
+        },
+        "Reconciliation Type": {
+          "label_cell": "B7",
+          "value_cell": "C7"
+        }
+      },
+      "table": {
+        "header_row": 13,
+        "data_start_row": 14,
+        "columns": {
+          "Invoice No": 2,
+          "Affiliate": 3,
+          "Origination Date": 4,
+          "Item Description": 5,
+          "Amount (USD)": 6,
+          "Rate": 7,
+          "Amount": 8,
+          "Transaction Currency": 9,
+          "Amount in Transaction": 10,
+          "Class": 11,
+          "Action Date": 12,
+          "Action Owner": 13,
+          "Action Plan": 14,
+          "Aging": 15,
+          "Item Sub-Type": 16
+        },
+        "formula_columns": [
+          "Aging",
+          "Amount (USD)",
+          "Item Sub-Type"
+        ]
+      }
+    },
+    "Check List": {
+      "labels": {
+        "Check Points": {
+          "label_cell": "D3",
+          "value_cell": "E3"
+        },
+        "Preparer": {
+          "label_cell": "E3",
+          "value_cell": "F3"
+        },
+        "List of Blocked Text": {
+          "label_cell": "M3",
+          "value_cell": "N3"
+        }
+      }
+    },
+    "GL Extract CY'26": {},
+    "IBS_Base (2)": {},
+    "AP Aging Report": {},
+    "Supporting P09": {},
+    "Supporting TB": {},
+    "Matched & Cleared Items": {}
+  }
+}
