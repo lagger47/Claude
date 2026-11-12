@@ -1,0 +1,9 @@
+Remittance finding.
+Pre automation- Download aging report, manually try to fetch the exact amount, make combination matching to the exact amount under same customer.
+If no combination found email to the POC for remittance details.
+Time needed 2 hour per day
+ 
+Post automation- Download aging report, put the amount with the BU and the currency, automation will make the exact combination or an exact match +-.05 for the remittance.
+Time taken 30 min per day
+
+Same one pager needed with FTE a PPT format 
