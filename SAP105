@@ -1,0 +1,38 @@
+If Not IsObject(application) Then
+   Set SapGuiAuto  = GetObject("SAPGUI")
+   Set application = SapGuiAuto.GetScriptingEngine
+End If
+If Not IsObject(connection) Then
+   Set connection = application.Children(0)
+End If
+If Not IsObject(session) Then
+   Set session    = connection.Children(0)
+End If
+If IsObject(WScript) Then
+   WScript.ConnectObject session,     "on"
+   WScript.ConnectObject application, "on"
+End If
+session.findById("wnd[0]").maximize
+session.findById("wnd[0]/usr/cntlIMAGE_CONTAINER/shellcont/shell/shellcont[0]/shell").doubleClickNode "F00004"
+session.findById("wnd[0]/usr/radX_AISEL").select
+session.findById("wnd[0]/usr/ctxtSO_BUDAT-LOW").setFocus
+session.findById("wnd[0]/usr/ctxtSO_BUDAT-LOW").caretPosition = 0
+session.findById("wnd[0]").sendVKey 4
+session.findById("wnd[1]/usr/sub:SAPLSHLC:0200/txtIOWORKFLDS-DAY07[0,22]").setFocus
+session.findById("wnd[1]/usr/sub:SAPLSHLC:0200/txtIOWORKFLDS-DAY07[0,22]").caretPosition = 2
+session.findById("wnd[1]/usr/btnPUSHB_PICK").press
+session.findById("wnd[0]/usr/ctxtSO_BUDAT-HIGH").setFocus
+session.findById("wnd[0]/usr/ctxtSO_BUDAT-HIGH").caretPosition = 0
+session.findById("wnd[0]").sendVKey 4
+session.findById("wnd[1]/usr/sub:SAPLSHLC:0200/txtIOWORKFLDS-DAY01[3,4]").caretPosition = 1
+session.findById("wnd[1]").sendVKey 2
+session.findById("wnd[0]/tbar[1]/btn[8]").press
+session.findById("wnd[0]/mbar/menu[0]/menu[3]/menu[1]").select
+session.findById("wnd[1]/usr/radRB_OTHERS").setFocus
+session.findById("wnd[1]/usr/radRB_OTHERS").select
+session.findById("wnd[1]/usr/cmbG_LISTBOX").key = "10"
+session.findById("wnd[1]/tbar[0]/btn[0]").press
+has context menu
+
+
+SAP script to open the GL and download the report for the user selected date range  save it as 1005243 file where the user wants then ask the user to select the folder for MUFG from there select the folders for the month selected while extracting the SAP report and the folder names are like 11 04 2026 Repay 11 10 2026 and so on so lets say user extracted the report for November then check the dates 04 and 10 and see if the GL extracted file for that date their total sum is 0 or not if not give the variance and do it for all the dates for that month or the range selected for and similarly do it for WF2 folders that also the user can select ( path for MUFG and WF2 Folders can be given stays constant) put the date filter in Document Date column F for the date and amount is in Column H also I have a SOLD file for each date  user selects it and  the macro goes to the summary tab it has a pivot and in that the Grand total for Sum of Funded Amount and it gives the variance based on this number the user can select these files for the macro 
