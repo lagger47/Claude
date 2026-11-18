@@ -1,0 +1,5 @@
+CLUES (mask client data before sharing):
+box value now: "606881"
+button: <input class="bg-primary" type="button" id="searchButton" name="searchButton" value="  Search  " style="text-align: center" onclick="runSearch()">
+box: <input type="text" id="debitId" name="debitId" size="15" maxlength="8" onchange="processDates()">
+inside a <form>: true
