@@ -1,0 +1,19 @@
+Hi Sharan,
+
+The Filter results are as expected and working fine.
+
+The next focus is preparing the Journal out of it. In order to prepare the JE my suggestion is as below:
+
+There should be some option to select what to debit and credit. To do that I  have 3 categorization such as Invoice value, Mark up ,COS.
+o	First there should be an option to put the account ,dept ,Pool for the Debit balance(I,e Invoice Value) lets Say Debit account  10292 ,Dept 823BI,Pool 000
+o	2nd option should be to select the markup account. Say Account 70219,Dept ,pool, project and activity ,destination, product .
+o	3rd option credit the COS say 80084 or 70219 or 25199 and the dept ,pool ,project ,activity should be selected from the Journal output list.
+o	4th While preparing the JE ,you must put an option that if the total cost to bill is negative then ,debit and credit will automatically change as below :
+	Debit COS 80084 or 70219 or 25199
+	Debit Mark up 70219
+	Credit Invoice value 10292
+o	We need to Prepare a master list. Which should contain the project and dept list along with the affiliate to be recharged for that cost. Consequently ,When we select the dept or project to recharge as below it should automatically select the affiliate to recharge and include that in the JE.
+
+
+This is how they want the output also what i got during teh call was like its a JE so everuything for a same Bu is in one line i did not get it like as per R2R standard create the JE this is the mail i got
+ GL ACC 	 Affiliate 	 Project 	 Activity 	 Dept  	 Pool 	Destination	Product
