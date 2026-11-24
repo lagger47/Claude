@@ -1,0 +1,48 @@
+If Not IsObject(application) Then
+   Set SapGuiAuto  = GetObject("SAPGUI")
+   Set application = SapGuiAuto.GetScriptingEngine
+End If
+If Not IsObject(connection) Then
+   Set connection = application.Children(0)
+End If
+If Not IsObject(session) Then
+   Set session    = connection.Children(0)
+End If
+If IsObject(WScript) Then
+   WScript.ConnectObject session,     "on"
+   WScript.ConnectObject application, "on"
+End If
+session.findById("wnd[0]").maximize
+session.findById("wnd[0]/tbar[0]/okcd").text = "FB03"
+session.findById("wnd[0]").sendVKey 0
+session.findById("wnd[0]/usr/txtRF05L-BELNR").text = "2000604363"
+session.findById("wnd[0]/usr/ctxtRF05L-BUKRS").text = "1091"
+session.findById("wnd[0]/usr/txtRF05L-GJAHR").text = "2026"
+session.findById("wnd[0]/usr/txtRF05L-GJAHR").setFocus
+session.findById("wnd[0]/usr/txtRF05L-GJAHR").caretPosition = 4
+session.findById("wnd[0]").sendVKey 0
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").setCurrentCell -1,"AZBET"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").selectColumn "AZBET"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").selectedRows = ""
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").pressToolbarButton "&MB_SUM"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").setCurrentCell -1,"BSCHL"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").selectColumn "BSCHL"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").pressToolbarButton "&MB_SUBTOT"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").currentCellRow = 119
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").firstVisibleRow = 111
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").selectedRows = "119"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").pressTotalRowCurrentCell
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").setColumnWidth "BSCHL",6
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").setColumnWidth "AZBET",12
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").setColumnWidth "BSCHL",10
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").setColumnWidth "AZBET",16
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").setCurrentCell 3,"BSCHL"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").selectedRows = "3"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").pressTotalRowCurrentCell
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").setCurrentCell 15,"BSCHL"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").firstVisibleRow = 9
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").selectedRows = "15"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").pressTotalRowCurrentCell
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").setCurrentCell 4,"BSCHL"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").selectedRows = "4"
+session.findById("wnd[0]/usr/cntlCTRL_CONTAINERBSEG/shellcont/shell").pressTotalRowCurrentCell
