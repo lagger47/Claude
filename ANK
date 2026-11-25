@@ -1,0 +1,65 @@
+If Not IsObject(application) Then
+   Set SapGuiAuto  = GetObject("SAPGUI")
+   Set application = SapGuiAuto.GetScriptingEngine
+End If
+If Not IsObject(connection) Then
+   Set connection = application.Children(0)
+End If
+If Not IsObject(session) Then
+   Set session    = connection.Children(0)
+End If
+If IsObject(WScript) Then
+   WScript.ConnectObject session,     "on"
+   WScript.ConnectObject application, "on"
+End If
+session.findById("wnd[0]").maximize
+session.findById("wnd[0]/usr/cntlIMAGE_CONTAINER/shellcont/shell/shellcont[0]/shell").doubleClickNode "F00021"
+session.findById("wnd[0]/tbar[1]/btn[8]").press
+session.findById("wnd[0]/usr/ssubTABSTRIP:SAPLATAB:0100/tabsTABSTRIP100/tabpTAB01/ssubSUBSC:SAPLATAB:0200/subAREA2:SAPLAMDP:0501/subSUBSCREEN1:SAPLAMDP:0200/ctxtRAIFP1-BLDAT").text = "23.11.2026"
+session.findById("wnd[0]/usr/ssubTABSTRIP:SAPLATAB:0100/tabsTABSTRIP100/tabpTAB01/ssubSUBSC:SAPLATAB:0200/subAREA2:SAPLAMDP:0501/subSUBSCREEN3:SAPLAMDP:0202/ctxtRAIFP1-BZDAT").text = "23.11.2026"
+session.findById("wnd[0]/usr/ssubTABSTRIP:SAPLATAB:0100/tabsTABSTRIP100/tabpTAB01/ssubSUBSC:SAPLATAB:0200/subAREA3:SAPLAMDP:0506/subSUBSCREEN1:SAPLAMDP:0206/txtRAIFP2-SGTXT").text = "Verschrottung Blumberg PC 5100-148"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,0]").text = "102243"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,1]").text = "110294"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,2]").text = "102426"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,3]").text = "200023"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,4]").text = "200029"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,5]").text = "200033"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL2[1,0]").text = "0"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL2[1,1]").text = "0"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL2[1,2]").text = "0"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL2[1,3]").text = "0"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL2[1,4]").text = "0"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL2[1,5]").text = "0"
+session.findById("wnd[0]/usr/ssubTABSTRIP:SAPLATAB:0100/tabsTABSTRIP100/tabpTAB01/ssubSUBSC:SAPLATAB:0200/subAREA3:SAPLAMDP:0506/subSUBSCREEN1:SAPLAMDP:0206/txtRAIFP2-SGTXT").setFocus
+session.findById("wnd[0]/usr/ssubTABSTRIP:SAPLATAB:0100/tabsTABSTRIP100/tabpTAB01/ssubSUBSC:SAPLATAB:0200/subAREA3:SAPLAMDP:0506/subSUBSCREEN1:SAPLAMDP:0206/txtRAIFP2-SGTXT").caretPosition = 34
+session.findById("wnd[0]/usr/ssubTABSTRIP:SAPLATAB:0100/tabsTABSTRIP100/tabpTAB02").select
+session.findById("wnd[0]/usr/ssubTABSTRIP:SAPLATAB:0100/tabsTABSTRIP100/tabpTAB02/ssubSUBSC:SAPLATAB:0200/subAREA1:SAPLAMDP:0507/subSUBSCREEN1:SAPLAMDP:0203/txtRAIFP2-MONAT").text = "11"
+session.findById("wnd[0]/usr/ssubTABSTRIP:SAPLATAB:0100/tabsTABSTRIP100/tabpTAB02/ssubSUBSC:SAPLATAB:0200/subAREA2:SAPLAMDP:0508/subSUBSCREEN1:SAPLAMDP:0205/ctxtRAIFP1-BWASL").text = "200"
+session.findById("wnd[0]/usr/ssubTABSTRIP:SAPLATAB:0100/tabsTABSTRIP100/tabpTAB02/ssubSUBSC:SAPLATAB:0200/subAREA3:SAPLAMDP:0509/subSUBSCREEN1:SAPLAMDP:0207/txtRAIFP1-XBLNR").text = "Asset Inventory"
+session.findById("wnd[0]/usr/ssubTABSTRIP:SAPLATAB:0100/tabsTABSTRIP100/tabpTAB02/ssubSUBSC:SAPLATAB:0200/subAREA3:SAPLAMDP:0509/subSUBSCREEN1:SAPLAMDP:0207/txtRAIFP1-XBLNR").setFocus
+session.findById("wnd[0]/usr/ssubTABSTRIP:SAPLATAB:0100/tabsTABSTRIP100/tabpTAB02/ssubSUBSC:SAPLATAB:0200/subAREA3:SAPLAMDP:0509/subSUBSCREEN1:SAPLAMDP:0207/txtRAIFP1-XBLNR").caretPosition = 15
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16").verticalScrollbar.position = 4
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16").verticalScrollbar.position = 6
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16").verticalScrollbar.position = 3
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,3]").text = "102108"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,4]").text = "110241"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,5]").text = "110250"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL2[1,3]").text = "1"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL2[1,4]").text = "0"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL2[1,5]").text = "0"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,3]").setFocus
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,3]").caretPosition = 0
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16").verticalScrollbar.position = 6
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,3]").text = "102777"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,4]").text = "109957"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL1[0,5]").text = "102974"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL2[1,3]").text = "0"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL2[1,4]").text = "0"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16/ctxtEL2[1,5]").text = "0"
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16").verticalScrollbar.position = 9
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16").verticalScrollbar.position = 12
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16").verticalScrollbar.position = 9
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16").verticalScrollbar.position = 6
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16").verticalScrollbar.position = 3
+session.findById("wnd[0]/usr/ssubSUBSCREEN_FOR_TC1:SAPLSTC1:0115/tblSAPLSTC1GENERIC_TABLE_16").verticalScrollbar.position = 0
+session.findById("wnd[0]/tbar[1]/btn[9]").press
